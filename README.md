@@ -1,57 +1,57 @@
 # CryptoBot
 
-Phase 1-2 foundation for a cryptocurrency monitoring and Telegram push bot.
+CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-2 基礎版本。
 
-## Current scope
+## 目前功能範圍
 
-- `/start`, `/help`, `/price <symbol>`, `/fear` Telegram commands
-- `/setalert`, `/listalerts`, `/deletealert` price alert commands
-- CoinGecko keyless price lookup with richer market snapshot
-- Alternative.me Fear & Greed integration
-- Startup notification + immediate market summary push
-- APScheduler periodic market summary push
-- SQLite + SQLAlchemy candle storage
-- CoinGecko OHLC history sync for tracked symbols
-- Built-in indicator helpers for SMA, EMA, RSI, and MACD
-- Scheduled price-alert evaluation with one-shot trigger behavior
-- `.env` + `config.yaml` configuration loading
-- `loguru` logging
+- `/start`、`/help`、`/price <symbol>`、`/fear` Telegram 指令
+- `/setalert`、`/listalerts`、`/deletealert` 價格警報指令
+- 使用 CoinGecko 免費 keyless API 查詢更完整的市場快照
+- 整合 Alternative.me Fear & Greed 市場情緒指數
+- 啟動通知與立即市場快報推播
+- APScheduler 定期市場快報推播
+- 使用 SQLite + SQLAlchemy 儲存 K 線資料
+- 針對追蹤幣種同步 CoinGecko OHLC 歷史 K 線
+- 內建 SMA、EMA、RSI、MACD 指標輔助函式
+- 排程價格警報檢查，採一次性觸發後自動停用
+- `.env` + `config.yaml` 設定載入
+- `loguru` 日誌記錄
 
-## Quick start
+## 快速開始
 
-1. Create a virtual environment and install dependencies.
-2. Copy `.env.example` to `.env` and fill in `TELEGRAM_BOT_TOKEN`.
-3. Update `config.yaml` if needed.
-4. Run `python -m bot.main`
-5. In Telegram, test `/price BTC`, `/price btcusdt`, `/fear`, `/setalert BTC above 70000`
+1. 建立虛擬環境並安裝依賴。
+2. 將 `.env.example` 複製為 `.env`，並填入 `TELEGRAM_BOT_TOKEN`。
+3. 視需要更新 `config.yaml`。
+4. 執行 `python -m bot.main`
+5. 在 Telegram 測試 `/price BTC`、`/price btcusdt`、`/fear`、`/setalert BTC above 70000`
 
-## Phase 2 foundation
+## Phase 2 基礎功能
 
-- Historical candles are stored in SQLite via `DATABASE_URL`
-- The app can sync CoinGecko OHLC candles for tracked symbols
-- Indicator helpers currently live in `analysis/indicators.py`
-- `/price` can include RSI and MACD summary when candle history is available
-- Alerts are stored in SQLite and evaluated on a schedule
-- History sync is controlled by the `history` section in `config.yaml`
+- 歷史 K 線會透過 `DATABASE_URL` 儲存在 SQLite
+- 應用程式可為追蹤幣種同步 CoinGecko OHLC K 線
+- 指標輔助函式目前位於 `analysis/indicators.py`
+- `/price` 在有 K 線資料時可附帶 RSI 與 MACD 摘要
+- 價格警報會儲存在 SQLite，並由排程定期檢查
+- 歷史資料同步由 `config.yaml` 中的 `history` 區塊控制
 
-## `/price` behavior
+## `/price` 行為
 
-- Accepts symbols like `BTC`, `btc`, `BTCUSDT`, `ETHUSD`
-- Returns price, 24h change, 24h range, market cap, volume, and data timestamp
-- Includes RSI / MACD summary when local candle history exists or can be backfilled
-- Unsupported symbols return a supported-symbol hint instead of a generic traceback
+- 接受 `BTC`、`btc`、`BTCUSDT`、`ETHUSD` 這類輸入
+- 回覆價格、24h 漲跌、24h 區間、市值、成交量與資料時間
+- 若本地已有歷史 K 線，或可即時補抓，會附上 RSI / MACD 摘要
+- 不支援的幣種會回覆可用幣種提示，而不是通用 traceback
 
-## Alert commands
+## 警報指令
 
 - `/setalert BTC above 70000`
 - `/setalert ETH below 3000`
 - `/listalerts`
 - `/deletealert 1`
 
-## Notes
+## 注意事項
 
-- `TELEGRAM_DEFAULT_CHAT_ID` or `push.chat_id` must be set for scheduled pushes.
-- The scheduler starts with the bot process.
-- On startup, the bot sends an online notification and an immediate market summary before the regular interval schedule.
-- SQLite runtime files are stored under `runtime/` and ignored by git.
-- Triggered alerts are one-shot and automatically deactivated after firing.
+- 若要使用排程推播，必須設定 `TELEGRAM_DEFAULT_CHAT_ID` 或 `push.chat_id`
+- Scheduler 會隨 bot 進程一起啟動
+- 啟動時 bot 會先送出上線通知與一則立即市場快報，之後才依照固定週期排程
+- SQLite 執行期資料會存放在 `runtime/`，且已被 git 忽略
+- 觸發過的警報為一次性警報，送出後會自動停用

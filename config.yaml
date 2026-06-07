@@ -1,0 +1,19 @@
+app:
+  timezone: Asia/Taipei
+  log_level: INFO
+
+market:
+  quote_currency: usd
+  tracked_symbols:
+    - BTC
+    - ETH
+  default_price_symbol: BTC
+
+push:
+  enabled: true
+  interval_minutes: 5
+  chat_id: null
+
+api:
+  coingecko:
+    base_url: https://api.coingecko.com/api/v3

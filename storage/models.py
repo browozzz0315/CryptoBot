@@ -66,3 +66,19 @@ class PriceAlert(Base):
         onupdate=lambda: datetime.now(tz=UTC),
         server_default=func.now(),
     )
+
+
+class UserSubscription(Base):
+    __tablename__ = "user_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("chat_id", "symbol", name="uq_user_subscription_chat_symbol"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chat_id: Mapped[str] = mapped_column(String(64), index=True)
+    symbol: Mapped[str] = mapped_column(String(20), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(tz=UTC),
+        server_default=func.now(),
+    )

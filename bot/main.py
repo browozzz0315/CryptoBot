@@ -7,13 +7,20 @@ from telegram.ext import Application, CommandHandler
 
 from bot.formatters import format_startup_message
 from bot.handlers.commands import (
+    chart_command,
     delete_alert_command,
     fear_command,
     help_command,
     list_alerts_command,
     price_command,
+    subscribe_command,
+    subscriptions_command,
     set_alert_command,
     start_command,
+    top_gainers_command,
+    top_losers_command,
+    top_volume_command,
+    unsubscribe_command,
 )
 from data.coingecko import CoinGeckoClient
 from data.fear_greed import FearGreedClient
@@ -22,6 +29,7 @@ from scheduler.runner import configure_scheduler
 from storage.alerts import AlertRepository
 from storage.candles import CandleRepository
 from storage.database import create_engine, create_session_factory, init_database
+from storage.users import UserSubscriptionRepository
 from utils.config_loader import load_settings
 from utils.logger import setup_logger
 
@@ -98,6 +106,9 @@ def build_application() -> Application:
     application.bot_data["alert_repository"] = AlertRepository(
         application.bot_data["db_session_factory"]
     )
+    application.bot_data["user_subscription_repository"] = UserSubscriptionRepository(
+        application.bot_data["db_session_factory"]
+    )
     application.bot_data["coingecko_client"] = CoinGeckoClient(
         base_url=settings.api.coingecko.base_url,
         api_key=settings.coingecko_api_key,
@@ -114,6 +125,13 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("setalert", set_alert_command))
     application.add_handler(CommandHandler("listalerts", list_alerts_command))
     application.add_handler(CommandHandler("deletealert", delete_alert_command))
+    application.add_handler(CommandHandler("topgainers", top_gainers_command))
+    application.add_handler(CommandHandler("toplosers", top_losers_command))
+    application.add_handler(CommandHandler("topvolume", top_volume_command))
+    application.add_handler(CommandHandler("subscribe", subscribe_command))
+    application.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
+    application.add_handler(CommandHandler("subscriptions", subscriptions_command))
+    application.add_handler(CommandHandler("chart", chart_command))
     return application
 
 

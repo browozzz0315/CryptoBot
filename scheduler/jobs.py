@@ -14,27 +14,38 @@ async def push_market_summary(application: Application) -> None:
     settings = application.bot_data["settings"]
     coingecko_client = application.bot_data["coingecko_client"]
     fear_greed_client = application.bot_data["fear_greed_client"]
+    user_subscription_repository = application.bot_data["user_subscription_repository"]
 
     chat_id = settings.push.chat_id
-    if not chat_id:
-        logger.warning("Scheduled push skipped because chat_id is not configured.")
-        return
-
     symbols = settings.market.tracked_symbols
     quotes = await coingecko_client.get_prices(symbols)
     message = format_market_summary(quotes, datetime.now())
+    sentiment_message = None
 
     try:
         sentiment = await fear_greed_client.get_latest()
     except Exception:  # noqa: BLE001
         logger.exception("Failed to fetch Fear & Greed index for scheduled push")
     else:
-        message = (
-            f"{message}\n\n"
-            f"😱 Fear & Greed：{sentiment['value']}（{sentiment['classification']}）"
-        )
+        sentiment_message = f"😱 Fear & Greed：{sentiment['value']}（{sentiment['classification']}）"
+        message = f"{message}\n\n{sentiment_message}"
 
-    await application.bot.send_message(chat_id=chat_id, text=message)
+    if chat_id:
+        await application.bot.send_message(chat_id=chat_id, text=message)
+    else:
+        logger.warning("Default scheduled push skipped because chat_id is not configured.")
+
+    # Send user-specific summaries based on their subscriptions.
+    delivered_chat_ids = {str(chat_id)} if chat_id else set()
+    subscriptions = await _load_subscription_map(user_subscription_repository)
+    for subscribed_chat_id, subscribed_symbols in subscriptions.items():
+        if subscribed_chat_id in delivered_chat_ids:
+            continue
+        subscription_quotes = await coingecko_client.get_prices(subscribed_symbols)
+        subscription_message = format_market_summary(subscription_quotes, datetime.now())
+        if sentiment_message:
+            subscription_message = f"{subscription_message}\n\n{sentiment_message}"
+        await application.bot.send_message(chat_id=subscribed_chat_id, text=subscription_message)
 
 
 async def sync_market_history(application: Application) -> None:
@@ -109,3 +120,11 @@ async def check_price_alerts(application: Application) -> None:
             ),
         )
         await alert_repository.mark_triggered(alert.id)
+
+
+async def _load_subscription_map(user_subscription_repository) -> dict[str, list[str]]:
+    subscriptions = await user_subscription_repository.list_all_subscriptions()
+    grouped: dict[str, list[str]] = {}
+    for subscription in subscriptions:
+        grouped.setdefault(subscription.chat_id, []).append(subscription.symbol)
+    return grouped

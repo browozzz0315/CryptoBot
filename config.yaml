@@ -27,6 +27,30 @@ alerts:
   enabled: true
   check_interval_minutes: 1
 
+screener:
+  enabled: true
+  symbols:
+    - BTC
+    - ETH
+    - SOL
+    - BNB
+    - XRP
+    - DOGE
+    - ADA
+    - TRX
+    - AVAX
+    - LINK
+    - TON
+    - DOT
+    - MATIC
+    - SUI
+  top_n: 5
+
+charts:
+  enabled: true
+  output_dir: runtime/charts
+  default_limit: 60
+
 api:
   coingecko:
     base_url: https://api.coingecko.com/api/v3

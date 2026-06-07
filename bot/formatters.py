@@ -105,6 +105,24 @@ def format_alert_triggered_message(symbol: str, direction: str, target_price: fl
     )
 
 
+def format_screener_message(title: str, quotes: list[dict[str, float | str]]) -> str:
+    lines = [title, ""]
+    for quote in quotes:
+        lines.append(
+            f"{str(quote['symbol']).upper():<6} "
+            f"{float(quote['price']):,.4f}  "
+            f"{float(quote['change_24h']):+,.2f}%  "
+            f"Vol {float(quote['total_volume']):,.0f}"
+        )
+    return "\n".join(lines)
+
+
+def format_subscription_message(symbols: list[str]) -> str:
+    if not symbols:
+        return "目前沒有任何訂閱幣種。"
+    return "🔖 已訂閱幣種\n" + "\n".join(f"- {symbol.upper()}" for symbol in symbols)
+
+
 def _format_optional_number(value: float | None | str) -> str:
     if value is None:
         return "N/A"

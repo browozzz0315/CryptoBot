@@ -49,6 +49,20 @@ class AlertsConfig:
 
 
 @dataclass(slots=True)
+class ScreenerConfig:
+    enabled: bool
+    symbols: list[str]
+    top_n: int
+
+
+@dataclass(slots=True)
+class ChartsConfig:
+    enabled: bool
+    output_dir: str
+    default_limit: int
+
+
+@dataclass(slots=True)
 class CoinGeckoConfig:
     base_url: str
 
@@ -74,6 +88,8 @@ class Settings:
     storage: StorageConfig
     history: HistoryConfig
     alerts: AlertsConfig
+    screener: ScreenerConfig
+    charts: ChartsConfig
     api: ApiConfig
 
 
@@ -125,6 +141,16 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
         alerts=AlertsConfig(
             enabled=bool(raw_config["alerts"]["enabled"]),
             check_interval_minutes=int(raw_config["alerts"]["check_interval_minutes"]),
+        ),
+        screener=ScreenerConfig(
+            enabled=bool(raw_config["screener"]["enabled"]),
+            symbols=raw_config["screener"]["symbols"],
+            top_n=int(raw_config["screener"]["top_n"]),
+        ),
+        charts=ChartsConfig(
+            enabled=bool(raw_config["charts"]["enabled"]),
+            output_dir=raw_config["charts"]["output_dir"],
+            default_limit=int(raw_config["charts"]["default_limit"]),
         ),
         api=ApiConfig(
             coingecko=CoinGeckoConfig(

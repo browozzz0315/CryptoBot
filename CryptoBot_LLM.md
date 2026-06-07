@@ -1,6 +1,6 @@
 # 加密貨幣監控推播機器人 — 專案企劃書
 
-> **文件版本**：v1.3  
+> **文件版本**：v1.4  
 > **建立日期**：2026-06-07  
 > **主要技術**：Python · Telegram Bot · 爬蟲 · 自動化交易  
 > **協作方式**：本文件供 LLM 協作開發使用，各節均可獨立作為任務上下文
@@ -70,6 +70,8 @@
 - CoinGecko OHLC 歷史資料可同步寫入 SQLite
 - 用戶可透過 Bot 設定價格突破警報
 - 警報可由排程自動檢查並在觸發後推播
+- 多幣種篩選與圖表輸出功能完成
+- 使用者可自訂訂閱幣種
 - 圖表圖片可傳送至 Telegram
 
 ### Phase 3 — 智能進化（預估 4–6 週）
@@ -107,8 +109,8 @@
 | 歷史資料儲存 | SQLite 儲存 OHLCV K 線，支援多幣種多時框 | P0 |
 | 價格警報 | 用戶可透過 `/setalert` 建立條件，排程檢查後立即推播 | P0 |
 | 多幣種篩選 | 24h 漲幅 Top 10、成交量異動等篩選推播 | P1 |
-| 圖表生成 | K 線圖 + 指標疊加，以圖片傳至 Telegram | P1 |
-| 用戶訂閱制 | 每位用戶可自訂追蹤幣種與推播頻率 | P1 |
+| 圖表生成 | 依本地 K 線資料生成價格圖表，並傳至 Telegram | P1 |
+| 用戶訂閱制 | 每位用戶可自訂追蹤幣種，排程摘要依訂閱內容推播 | P1 |
 | Fear & Greed | Alternative.me 恐懼貪婪指數整合 | P2 |
 
 ### Phase 3 功能
@@ -207,7 +209,7 @@ crypto-bot/
 │   ├── models.py               # ORM 資料表定義
 │   ├── alerts.py               # 價格警報 CRUD
 │   ├── candles.py              # K 線資料 CRUD
-│   └── users.py                # 用戶設定 CRUD
+│   └── users.py                # 用戶訂閱 CRUD
 │
 ├── scheduler/                  # 排程模組
 │   ├── __init__.py
@@ -223,7 +225,7 @@ crypto-bot/
 │
 ├── charts/                     # 圖表生成
 │   ├── __init__.py
-│   └── candlestick.py          # K 線圖 + 指標疊加
+│   └── candlestick.py          # 價格圖表輸出
 │
 ├── utils/                      # 通用工具
 │   ├── __init__.py
@@ -412,6 +414,9 @@ aiosqlite==0.21.0
 - 已支援 `/setalert`、`/listalerts`、`/deletealert`
 - 已加入價格警報排程檢查，觸發後會自動推播並停用警報
 - `/price` 在有歷史 K 線資料時，會附上 RSI / MACD 指標摘要
+- 已支援 `/topgainers`、`/toplosers`、`/topvolume` 多幣種排行
+- 已支援 `/subscribe`、`/unsubscribe`、`/subscriptions` 用戶訂閱制
+- 已支援 `/chart` 生成並傳送價格圖表
 
 ### 推播訊息格式範例
 

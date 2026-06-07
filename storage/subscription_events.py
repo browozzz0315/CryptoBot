@@ -37,7 +37,8 @@ class SubscriptionEventStateRepository:
             return False
 
         reference_time = now or datetime.now(tz=UTC)
-        cooldown_until = state.last_triggered_at + timedelta(minutes=cooldown_minutes)
+        last_triggered_at = self._ensure_utc_datetime(state.last_triggered_at)
+        cooldown_until = last_triggered_at + timedelta(minutes=cooldown_minutes)
         return reference_time < cooldown_until
 
     async def get_state(
@@ -79,3 +80,8 @@ class SubscriptionEventStateRepository:
         async with self._session_factory() as session:
             await session.execute(statement)
             await session.commit()
+
+    def _ensure_utc_datetime(self, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)

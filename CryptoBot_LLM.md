@@ -452,6 +452,8 @@ aiosqlite==0.21.0
 - 已建立 `subscription_event_states` 狀態表，避免相同事件短時間重複推播
 - 已支援訂閱事件：24h 急漲急跌、RSI 過熱/過冷、MACD 黃金/死亡交叉、OI 暗流、Funding 偏負
 - 已支援 `subscription_events` 設定區塊，可調整檢查頻率、cooldown 與事件閾值
+- `/subscribe` 現在會先驗證是否為支援幣種，避免寫入無法查價的無效訂閱
+- `WARNING` / `ERROR` 日誌會額外寫入 `runtime/logs/warnings-errors.log`，供後續除錯追蹤
 
 ### 推播訊息格式範例
 

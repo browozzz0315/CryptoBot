@@ -82,6 +82,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 ## 事件型訂閱
 
 - `/subscribe <symbol>` 之後，系統會定期檢查該幣種是否出現事件
+- `/subscribe` 會先驗證是否為目前支援的 CoinGecko 幣種，避免寫入無法查價的訂閱
 - 目前事件包含：24h 急漲急跌、RSI 過熱/過冷、MACD 黃金/死亡交叉、OI 暗流、Funding 偏負
 - 相同事件會套用 cooldown，避免短時間重複洗版
 - 相關閾值與檢查頻率可在 `config.yaml` 的 `subscription_events` 區塊調整
@@ -96,6 +97,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 - Scheduler 會隨 bot 進程一起啟動
 - 啟動時 bot 會先送出上線通知與一則立即市場快報，之後才依照固定週期排程
 - SQLite 執行期資料會存放在 `runtime/`，且已被 git 忽略
+- `WARNING` 與 `ERROR` 等級日誌會額外寫入 `runtime/logs/warnings-errors.log`
 - 觸發過的警報為一次性警報，送出後會自動停用
 - Matplotlib 設定快取會寫入 `runtime/mplconfig`，避免系統權限問題
 - 策略雷達目前屬於規則引擎 MVP，分數與文字摘要可於後續再調參數

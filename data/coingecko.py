@@ -183,6 +183,18 @@ class CoinGeckoClient:
 
         return SYMBOL_ALIASES.get(alias_symbol, alias_symbol)
 
+    def validate_symbol(self, raw_symbol: str) -> str:
+        normalized_symbol = self.normalize_symbol(raw_symbol)
+        self._resolve_coin_id(normalized_symbol)
+        return normalized_symbol
+
+    def is_supported_symbol(self, raw_symbol: str) -> bool:
+        try:
+            self.validate_symbol(raw_symbol)
+        except ValueError:
+            return False
+        return True
+
     def supported_symbols(self) -> list[str]:
         return sorted(SYMBOL_TO_COINGECKO_ID.keys())
 

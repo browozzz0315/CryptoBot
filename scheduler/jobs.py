@@ -55,7 +55,14 @@ async def push_market_summary(application: Application) -> None:
     for subscribed_chat_id, subscribed_symbols in subscriptions.items():
         if subscribed_chat_id in delivered_chat_ids:
             continue
-        subscription_quotes = await coingecko_client.get_prices(subscribed_symbols)
+        supported_symbols = _filter_supported_symbols(
+            coingecko_client=coingecko_client,
+            symbols=subscribed_symbols,
+            context_label=f"scheduled summary chat {subscribed_chat_id}",
+        )
+        if not supported_symbols:
+            continue
+        subscription_quotes = await coingecko_client.get_prices(supported_symbols)
         subscription_message = format_market_summary(subscription_quotes, datetime.now())
         if sentiment_message:
             subscription_message = f"{subscription_message}\n\n{sentiment_message}"
@@ -157,7 +164,17 @@ async def check_subscription_events(application: Application) -> None:
     if not subscriptions:
         return
 
-    unique_symbols = sorted({symbol for symbols in subscriptions.values() for symbol in symbols})
+    unique_symbols = sorted(
+        {
+            symbol
+            for symbols in subscriptions.values()
+            for symbol in _filter_supported_symbols(
+                coingecko_client=coingecko_client,
+                symbols=symbols,
+                context_label="subscription event check",
+            )
+        }
+    )
     now = datetime.now(tz=UTC)
     quote_cache: dict[str, dict[str, float | str | datetime]] = {}
     close_price_cache: dict[str, list[float]] = {}
@@ -289,6 +306,16 @@ async def _load_subscription_map(user_subscription_repository) -> dict[str, list
     for subscription in subscriptions:
         grouped.setdefault(subscription.chat_id, []).append(subscription.symbol)
     return grouped
+
+
+def _filter_supported_symbols(*, coingecko_client, symbols: list[str], context_label: str) -> list[str]:
+    supported_symbols: list[str] = []
+    for symbol in symbols:
+        if coingecko_client.is_supported_symbol(symbol):
+            supported_symbols.append(symbol)
+            continue
+        logger.warning("Skipping unsupported symbol {} during {}", symbol, context_label)
+    return supported_symbols
 
 
 async def push_strategy_radar(application: Application, *, deliver: bool = True) -> str:

@@ -192,7 +192,7 @@ async def set_alert_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     alert_repository = context.application.bot_data["alert_repository"]
 
     try:
-        symbol = coingecko_client.normalize_symbol(raw_symbol)
+        symbol = coingecko_client.validate_symbol(raw_symbol)
         target_price = float(raw_price)
     except ValueError as exc:
         await update.message.reply_text(f"警報建立失敗：{exc}")
@@ -294,7 +294,7 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return
 
     try:
-        symbol = coingecko_client.normalize_symbol(context.args[0])
+        symbol = coingecko_client.validate_symbol(context.args[0])
     except ValueError as exc:
         await update.message.reply_text(str(exc))
         return
@@ -362,7 +362,7 @@ async def chart_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     raw_symbol = context.args[0] if context.args else settings.market.default_price_symbol
     try:
-        symbol = coingecko_client.normalize_symbol(raw_symbol)
+        symbol = coingecko_client.validate_symbol(raw_symbol)
     except ValueError as exc:
         await update.message.reply_text(str(exc))
         return

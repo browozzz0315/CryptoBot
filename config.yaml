@@ -77,6 +77,18 @@ radar:
   sideways_lookback_candles: 30
   sideways_threshold_pct: 12.0
 
+subscription_events:
+  enabled: true
+  check_interval_minutes: 3
+  cooldown_minutes: 180
+  history_limit: 80
+  price_change_threshold_pct: 8.0
+  rsi_overbought: 70.0
+  rsi_oversold: 30.0
+  oi_surge_threshold_pct: 12.0
+  price_flat_threshold_pct: 2.5
+  funding_negative_threshold_pct: -0.03
+
 api:
   coingecko:
     base_url: https://api.coingecko.com/api/v3

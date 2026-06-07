@@ -31,6 +31,7 @@ from scheduler.runner import configure_scheduler
 from storage.alerts import AlertRepository
 from storage.candles import CandleRepository
 from storage.database import create_engine, create_session_factory, init_database
+from storage.subscription_events import SubscriptionEventStateRepository
 from storage.users import UserSubscriptionRepository
 from utils.config_loader import load_settings
 from utils.logger import setup_logger
@@ -113,6 +114,9 @@ def build_application() -> Application:
         application.bot_data["db_session_factory"]
     )
     application.bot_data["user_subscription_repository"] = UserSubscriptionRepository(
+        application.bot_data["db_session_factory"]
+    )
+    application.bot_data["subscription_event_state_repository"] = SubscriptionEventStateRepository(
         application.bot_data["db_session_factory"]
     )
     application.bot_data["coingecko_client"] = CoinGeckoClient(

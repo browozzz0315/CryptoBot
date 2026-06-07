@@ -20,6 +20,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 - 內建 SMA、EMA、RSI、MACD 指標輔助函式
 - 排程價格警報檢查，採一次性觸發後自動停用
 - 使用者可自訂訂閱幣種，排程推播會依訂閱內容送出摘要
+- 訂閱幣種支援事件型通知，例如急漲急跌、RSI 過熱過冷、MACD 交叉、OI 暗流、Funding 偏負
 - 內建多幣種排行篩選、價格圖表輸出與策略雷達推播
 - `.env` + `config.yaml` 設定載入
 - `loguru` 日誌記錄
@@ -77,6 +78,13 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 - `/unsubscribe BTC`
 - `/subscriptions`
 - `/chart BTC`
+
+## 事件型訂閱
+
+- `/subscribe <symbol>` 之後，系統會定期檢查該幣種是否出現事件
+- 目前事件包含：24h 急漲急跌、RSI 過熱/過冷、MACD 黃金/死亡交叉、OI 暗流、Funding 偏負
+- 相同事件會套用 cooldown，避免短時間重複洗版
+- 相關閾值與檢查頻率可在 `config.yaml` 的 `subscription_events` 區塊調整
 
 ## 雷達指令
 

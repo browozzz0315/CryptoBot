@@ -82,3 +82,28 @@ class UserSubscription(Base):
         default=lambda: datetime.now(tz=UTC),
         server_default=func.now(),
     )
+
+
+class SubscriptionEventState(Base):
+    __tablename__ = "subscription_event_states"
+    __table_args__ = (
+        UniqueConstraint("chat_id", "symbol", "event_key", name="uq_subscription_event_state"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chat_id: Mapped[str] = mapped_column(String(64), index=True)
+    symbol: Mapped[str] = mapped_column(String(20), index=True)
+    event_key: Mapped[str] = mapped_column(String(64), index=True)
+    last_event_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(tz=UTC),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(tz=UTC),
+        onupdate=lambda: datetime.now(tz=UTC),
+        server_default=func.now(),
+    )

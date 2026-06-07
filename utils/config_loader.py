@@ -77,6 +77,20 @@ class RadarConfig:
 
 
 @dataclass(slots=True)
+class SubscriptionEventsConfig:
+    enabled: bool
+    check_interval_minutes: int
+    cooldown_minutes: int
+    history_limit: int
+    price_change_threshold_pct: float
+    rsi_overbought: float
+    rsi_oversold: float
+    oi_surge_threshold_pct: float
+    price_flat_threshold_pct: float
+    funding_negative_threshold_pct: float
+
+
+@dataclass(slots=True)
 class CoinGeckoConfig:
     base_url: str
 
@@ -111,6 +125,7 @@ class Settings:
     screener: ScreenerConfig
     charts: ChartsConfig
     radar: RadarConfig
+    subscription_events: SubscriptionEventsConfig
     api: ApiConfig
 
 
@@ -184,6 +199,18 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             ambush_top_n=int(raw_config["radar"]["ambush_top_n"]),
             sideways_lookback_candles=int(raw_config["radar"]["sideways_lookback_candles"]),
             sideways_threshold_pct=float(raw_config["radar"]["sideways_threshold_pct"]),
+        ),
+        subscription_events=SubscriptionEventsConfig(
+            enabled=bool(raw_config["subscription_events"]["enabled"]),
+            check_interval_minutes=int(raw_config["subscription_events"]["check_interval_minutes"]),
+            cooldown_minutes=int(raw_config["subscription_events"]["cooldown_minutes"]),
+            history_limit=int(raw_config["subscription_events"]["history_limit"]),
+            price_change_threshold_pct=float(raw_config["subscription_events"]["price_change_threshold_pct"]),
+            rsi_overbought=float(raw_config["subscription_events"]["rsi_overbought"]),
+            rsi_oversold=float(raw_config["subscription_events"]["rsi_oversold"]),
+            oi_surge_threshold_pct=float(raw_config["subscription_events"]["oi_surge_threshold_pct"]),
+            price_flat_threshold_pct=float(raw_config["subscription_events"]["price_flat_threshold_pct"]),
+            funding_negative_threshold_pct=float(raw_config["subscription_events"]["funding_negative_threshold_pct"]),
         ),
         api=ApiConfig(
             coingecko=CoinGeckoConfig(

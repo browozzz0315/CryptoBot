@@ -36,7 +36,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "/topgainers - 看漲幅排行\n"
         "/toplosers - 看跌幅排行\n"
         "/topvolume - 看成交量排行\n"
-        "/subscribe BTC - 訂閱幣種\n"
+        "/subscribe BTC - 訂閱幣種與事件通知\n"
         "/unsubscribe BTC - 取消訂閱\n"
         "/subscriptions - 查看訂閱\n"
         "/chart BTC - 取得圖表\n"
@@ -56,7 +56,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/topgainers - 查看漲幅排行\n"
         "/toplosers - 查看跌幅排行\n"
         "/topvolume - 查看成交量排行\n"
-        "/subscribe <symbol> - 訂閱幣種\n"
+        "/subscribe <symbol> - 訂閱幣種與事件通知\n"
         "/unsubscribe <symbol> - 取消訂閱幣種\n"
         "/subscriptions - 查看已訂閱幣種\n"
         "/chart <symbol> - 產生價格圖表\n"
@@ -305,7 +305,12 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             symbol=symbol,
         )
     )
-    await update.message.reply_text(f"✅ 已訂閱 {symbol}")
+    await update.message.reply_text(
+        f"✅ 已訂閱 {symbol}\n"
+        "之後你會收到：\n"
+        "1. 固定摘要中的訂閱幣種內容\n"
+        "2. 該幣種的事件型通知，例如急漲急跌、RSI 過熱過冷、MACD 交叉、OI 暗流、Funding 偏負"
+    )
 
 
 async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

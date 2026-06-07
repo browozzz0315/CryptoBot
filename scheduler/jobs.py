@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from loguru import logger
 from telegram.ext import Application
@@ -15,10 +15,13 @@ from analysis.radar import (
     calculate_oi_change_pct,
     estimate_sideways_days,
 )
+from analysis.signals import detect_subscription_events
 from bot.formatters import format_market_summary
 from bot.formatters import format_alert_triggered_message
 from bot.formatters import format_radar_message
+from bot.formatters import format_subscription_event_message
 from storage.candles import CandleRecord
+from storage.subscription_events import SubscriptionEventStateRecord
 
 
 async def push_market_summary(application: Application) -> None:
@@ -137,6 +140,147 @@ async def check_price_alerts(application: Application) -> None:
             ),
         )
         await alert_repository.mark_triggered(alert.id)
+
+
+async def check_subscription_events(application: Application) -> None:
+    settings = application.bot_data["settings"]
+    if not settings.subscription_events.enabled:
+        return
+
+    user_subscription_repository = application.bot_data["user_subscription_repository"]
+    subscription_event_state_repository = application.bot_data["subscription_event_state_repository"]
+    coingecko_client = application.bot_data["coingecko_client"]
+    binance_futures_client = application.bot_data["binance_futures_client"]
+    candle_repository = application.bot_data["candle_repository"]
+
+    subscriptions = await _load_subscription_map(user_subscription_repository)
+    if not subscriptions:
+        return
+
+    unique_symbols = sorted({symbol for symbols in subscriptions.values() for symbol in symbols})
+    now = datetime.now(tz=UTC)
+    quote_cache: dict[str, dict[str, float | str | datetime]] = {}
+    close_price_cache: dict[str, list[float]] = {}
+    derivatives_cache: dict[str, tuple[float | None, float | None]] = {}
+
+    for symbol in unique_symbols:
+        try:
+            quote_cache[symbol] = await coingecko_client.get_price(symbol)
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to fetch quote for subscription event check: {}", symbol)
+            continue
+
+        try:
+            close_prices = await candle_repository.list_close_prices(
+                symbol=symbol,
+                timeframe="4h",
+                source="coingecko",
+                limit=settings.subscription_events.history_limit,
+            )
+            if not close_prices and settings.history.enabled:
+                candle_rows = await coingecko_client.get_ohlc(symbol, settings.history.ohlc_days)
+                await candle_repository.upsert_candles(
+                    [
+                        CandleRecord(
+                            symbol=str(row["symbol"]),
+                            timeframe=str(row["timeframe"]),
+                            source=str(row["source"]),
+                            open_time=row["open_time"],
+                            close_time=row["close_time"],
+                            open_price=float(row["open_price"]),
+                            high_price=float(row["high_price"]),
+                            low_price=float(row["low_price"]),
+                            close_price=float(row["close_price"]),
+                        )
+                        for row in candle_rows
+                    ]
+                )
+                close_prices = await candle_repository.list_close_prices(
+                    symbol=symbol,
+                    timeframe="4h",
+                    source="coingecko",
+                    limit=settings.subscription_events.history_limit,
+                )
+            close_price_cache[symbol] = close_prices
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to load close prices for subscription event check: {}", symbol)
+            close_price_cache[symbol] = []
+
+        funding_rate = None
+        oi_change_pct = None
+        try:
+            funding = await binance_futures_client.get_latest_funding_rate(symbol)
+            funding_rate = float(funding["funding_rate"]) * 100
+        except Exception:  # noqa: BLE001
+            logger.warning("Subscription event funding data unavailable for {}", symbol)
+
+        try:
+            oi_hist = await binance_futures_client.get_open_interest_hist(symbol, period="1d", limit=2)
+            oi_values = [float(item["open_interest_value"]) for item in oi_hist]
+            oi_change_pct = calculate_oi_change_pct(oi_values)
+        except Exception:  # noqa: BLE001
+            logger.warning("Subscription event OI data unavailable for {}", symbol)
+
+        derivatives_cache[symbol] = (funding_rate, oi_change_pct)
+
+    for chat_id, symbols in subscriptions.items():
+        for symbol in symbols:
+            quote = quote_cache.get(symbol)
+            if quote is None:
+                continue
+
+            close_prices = close_price_cache.get(symbol, [])
+            funding_rate, oi_change_pct = derivatives_cache.get(symbol, (None, None))
+            events = detect_subscription_events(
+                symbol=symbol,
+                close_prices=close_prices,
+                change_24h=float(quote["change_24h"]),
+                funding_rate=funding_rate,
+                oi_change_pct=oi_change_pct,
+                price_change_threshold_pct=settings.subscription_events.price_change_threshold_pct,
+                rsi_overbought=settings.subscription_events.rsi_overbought,
+                rsi_oversold=settings.subscription_events.rsi_oversold,
+                oi_surge_threshold_pct=settings.subscription_events.oi_surge_threshold_pct,
+                price_flat_threshold_pct=settings.subscription_events.price_flat_threshold_pct,
+                funding_negative_threshold_pct=settings.subscription_events.funding_negative_threshold_pct,
+            )
+            if not events:
+                continue
+
+            event_lines: list[str] = []
+            for event in events:
+                in_cooldown = await subscription_event_state_repository.is_in_cooldown(
+                    chat_id=chat_id,
+                    symbol=symbol,
+                    event_key=event.event_key,
+                    cooldown_minutes=settings.subscription_events.cooldown_minutes,
+                    now=now,
+                )
+                if in_cooldown:
+                    continue
+
+                event_lines.append(f"{event.title}：{event.summary}")
+                await subscription_event_state_repository.upsert_state(
+                    SubscriptionEventStateRecord(
+                        chat_id=chat_id,
+                        symbol=symbol,
+                        event_key=event.event_key,
+                        last_event_value=event.value,
+                        last_triggered_at=now,
+                    )
+                )
+
+            if not event_lines:
+                continue
+
+            await application.bot.send_message(
+                chat_id=chat_id,
+                text=format_subscription_event_message(
+                    symbol=symbol,
+                    event_lines=event_lines,
+                    timestamp=now.astimezone(),
+                ),
+            )
 
 
 async def _load_subscription_map(user_subscription_repository) -> dict[str, list[str]]:

@@ -125,6 +125,18 @@ def format_subscription_message(symbols: list[str]) -> str:
     return "🔖 已訂閱幣種\n" + "\n".join(f"- {symbol.upper()}" for symbol in symbols)
 
 
+def format_subscription_event_message(
+    *,
+    symbol: str,
+    event_lines: list[str],
+    timestamp: datetime,
+) -> str:
+    header = f"🚨 訂閱事件通知 {timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+    lines = [header, f"標的：{symbol.upper()}", ""]
+    lines.extend(f"- {line}" for line in event_lines)
+    return "\n".join(lines)
+
+
 def format_radar_message(
     *,
     timestamp: datetime,

@@ -233,6 +233,7 @@ crypto-bot/
 │   ├── models.py               # ORM 資料表定義
 │   ├── alerts.py               # 價格警報 CRUD
 │   ├── candles.py              # K 線資料 CRUD
+│   ├── subscription_events.py  # 訂閱事件 cooldown 狀態
 │   └── users.py                # 用戶訂閱 CRUD
 │
 ├── scheduler/                  # 排程模組
@@ -447,6 +448,10 @@ aiosqlite==0.21.0
 - 已建立策略雷達排行榜：熱度榜、追多榜、綜合榜、埋伏榜
 - 已建立規則式「值得關注」摘要，依熱度、Funding、OI、橫盤與小市值條件組句
 - 已支援策略雷達定時推播設定，可獨立於一般市場快報開關與頻率
+- 已將 `/subscribe` 擴充為事件型訂閱來源，不再只用於固定摘要
+- 已建立 `subscription_event_states` 狀態表，避免相同事件短時間重複推播
+- 已支援訂閱事件：24h 急漲急跌、RSI 過熱/過冷、MACD 黃金/死亡交叉、OI 暗流、Funding 偏負
+- 已支援 `subscription_events` 設定區塊，可調整檢查頻率、cooldown 與事件閾值
 
 ### 推播訊息格式範例
 
@@ -503,6 +508,36 @@ aiosqlite==0.21.0
 - 新增「熱度突然升溫」與「連續橫盤後放量」等事件型推播
 - 為 `/radar` 增加指定幣池、指定榜單數量與只看永續合約可交易標的的篩選
 - 等 Phase 4 再考慮把規則式摘要接上 AI 文案潤飾，而不是把核心判斷交給 LLM
+
+### 訂閱事件推播設計說明（供未來協作延續）
+
+#### 目前設計
+
+- 使用既有 `user_subscriptions` 作為追蹤標的清單，不另建第二套訂閱模型
+- 每次排程執行時，先將所有 chat 的訂閱幣種做 union，避免重複抓取同一標的資料
+- 事件偵測目前依賴：
+  - CoinGecko `24h 漲跌`
+  - 本地 OHLC K 線計算 `RSI / MACD`
+  - Binance Futures `Funding Rate`
+  - Binance Futures `Open Interest` 變化
+- 相同 `chat_id + symbol + event_key` 會寫入 `subscription_event_states`，用於 cooldown 去重
+
+#### 目前事件種類
+
+- `price_surge_up`：24h 漲幅超過閾值
+- `price_surge_down`：24h 跌幅超過閾值
+- `rsi_overbought`：RSI 高於過熱閾值
+- `rsi_oversold`：RSI 低於過冷閾值
+- `macd_bullish_cross`：MACD 黃金交叉
+- `macd_bearish_cross`：MACD 死亡交叉
+- `oi_build_up`：價格變動不大但 OI 明顯增加
+- `funding_negative`：Funding 顯著轉負
+
+#### 已知限制
+
+- 目前 still 是 polling 式檢查，不是 WebSocket 真正逐筆即時
+- 若使用者同時訂閱多個熱門幣種，第一次啟用事件檢查時可能一次收到多則訊息
+- MACD 交叉判斷依賴本地 K 線完整度，若剛啟動且歷史資料不足，該事件可能暫時不觸發
 
 ---
 

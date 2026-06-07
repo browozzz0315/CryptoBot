@@ -8,9 +8,21 @@ from datetime import datetime
 
 
 def test_format_price_message_contains_symbol() -> None:
-    result = format_price_message("BTC", 100000.0, 3.5)
-    assert "BTC" in result
+    result = format_price_message(
+        symbol="BTC",
+        name="Bitcoin",
+        price=100000.0,
+        change_24h=3.5,
+        quote_currency="usd",
+        market_cap=1_000_000_000.0,
+        total_volume=500_000_000.0,
+        high_24h=101000.0,
+        low_24h=98000.0,
+        updated_at=datetime(2026, 6, 7, 12, 0, 0),
+    )
+    assert "Bitcoin (BTC)" in result
     assert "3.50%" in result
+    assert "資料時間" in result
 
 
 def test_format_market_summary_contains_rows() -> None:

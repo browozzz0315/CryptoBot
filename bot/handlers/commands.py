@@ -33,20 +33,34 @@ async def price_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     coingecko_client = context.application.bot_data["coingecko_client"]
     fear_greed_client = context.application.bot_data["fear_greed_client"]
 
-    symbol = (
-        context.args[0].upper()
+    raw_symbol = (
+        context.args[0]
         if context.args
-        else settings.market.default_price_symbol.upper()
+        else settings.market.default_price_symbol
     )
 
     try:
-        quote = await coingecko_client.get_price(symbol)
+        quote = await coingecko_client.get_price(raw_symbol)
+    except ValueError as exc:
+        await update.message.reply_text(str(exc))
+        return
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Failed to fetch price for {}", symbol)
-        await update.message.reply_text(f"查詢 {symbol} 價格失敗：{exc}")
+        logger.exception("Failed to fetch price for {}", raw_symbol)
+        await update.message.reply_text(f"查詢 {raw_symbol.upper()} 價格失敗：{exc}")
         return
 
-    message = format_price_message(symbol, quote["price"], quote["change_24h"])
+    message = format_price_message(
+        symbol=str(quote["symbol"]),
+        name=str(quote["name"]),
+        price=float(quote["price"]),
+        change_24h=float(quote["change_24h"]),
+        quote_currency=settings.market.quote_currency,
+        market_cap=float(quote["market_cap"]),
+        total_volume=float(quote["total_volume"]),
+        high_24h=float(quote["high_24h"]),
+        low_24h=float(quote["low_24h"]),
+        updated_at=quote["last_updated_at"],
+    )
 
     try:
         sentiment = await fear_greed_client.get_latest()

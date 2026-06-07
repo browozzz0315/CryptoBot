@@ -1,6 +1,6 @@
 # 加密貨幣監控推播機器人 — 專案企劃書
 
-> **文件版本**：v1.0  
+> **文件版本**：v1.1  
 > **建立日期**：2026-06-07  
 > **主要技術**：Python · Telegram Bot · 爬蟲 · 自動化交易  
 > **協作方式**：本文件供 LLM 協作開發使用，各節均可獨立作為任務上下文
@@ -56,7 +56,8 @@
 **里程碑**：
 - Telegram Bot 成功接收 `/price BTC` 指令並回覆
 - 排程每 5 分鐘自動推播 BTC/ETH 價格與漲跌幅
-- CoinAnk 爬蟲抓到資金費率資料
+- 啟動時自動推播 Bot 上線通知與第一則市場快報
+- Alternative.me Fear & Greed 指數整合完成
 - 基本錯誤處理與日誌記錄
 
 ### Phase 2 — 分析增強（預估 3–4 週）
@@ -87,10 +88,11 @@
 
 | 功能 | 說明 | 優先級 |
 |------|------|--------|
-| 價格抓取 | BTC、ETH 及自訂幣種即時價格、24h 漲跌幅、交易量 | P0 |
+| 價格抓取 | BTC、ETH 及自訂幣種即時價格、24h 漲跌幅、交易量、市值 | P0 |
 | Telegram Bot 建立 | Bot Token 申請、webhook/polling 設定、基本指令處理 | P0 |
 | 定時推播 | 每 N 分鐘/小時自動推播市場摘要 | P0 |
-| CoinAnk 爬蟲 | 抓取資金費率（Funding Rate）、多空比等衍生品資料 | P1 |
+| Fear & Greed | 整合 Alternative.me 市場情緒指數 | P1 |
+| CoinAnk 爬蟲 | 抓取資金費率（Funding Rate）、多空比等衍生品資料 | P2 |
 | 錯誤處理 | API 失敗重試、Bot 異常通知、日誌記錄 | P1 |
 | 設定檔管理 | `.env` 儲存 Token、`config.yaml` 管理幣種與排程 | P1 |
 | 訊息格式化 | 清晰的推播格式，含 emoji、漲跌顏色符號 | P2 |
@@ -187,7 +189,7 @@ crypto-bot/
 │   ├── coingecko.py            # CoinGecko API 封裝
 │   ├── binance_ws.py           # Binance WebSocket 串流
 │   ├── coinank_scraper.py      # CoinAnk 爬蟲
-│   ├── fear_greed.py           # 恐懼貪婪指數
+│   ├── fear_greed.py           # Alternative.me 恐懼貪婪指數
 │   └── base.py                 # 基礎類別、重試裝飾器
 │
 ├── analysis/                   # 分析與策略模組
@@ -373,23 +375,29 @@ BINANCE_SECRET_KEY=          # Phase 3 才需要
 
 1. `bot/main.py` — 建立 Bot，處理 `/start` 與 `/price BTC`
 2. `data/coingecko.py` — 封裝 CoinGecko 價格查詢
-3. `scheduler/jobs.py` — 加入每 5 分鐘推播任務
-4. `bot/formatters.py` — 格式化推播訊息
+3. `data/fear_greed.py` — 整合市場情緒指數
+4. `scheduler/jobs.py` — 加入啟動即時推播與每 5 分鐘推播任務
+5. `bot/formatters.py` — 格式化推播訊息
 
 ### requirements.txt（Phase 1 基本版）
 
 ```
-python-telegram-bot==21.0.1
+python-telegram-bot==21.9
 httpx==0.27.0
-beautifulsoup4==4.12.3
-playwright==1.44.0
 APScheduler==3.10.4
 python-dotenv==1.0.1
 pyyaml==6.0.1
 tenacity==8.3.0
 loguru==0.7.2
-pandas==2.2.2
 ```
+
+### 已完成現況（截至 2026-06-07）
+
+- Bot 啟動後會主動推播「已上線通知」
+- Bot 啟動後會立即推送第一則市場快報，不需等第一個排程週期
+- `/price` 支援 `BTC`、`btc`、`BTCUSDT` 這類常見輸入
+- `/price` 回覆包含價格、24h 漲跌、24h 區間、成交量、市值、資料時間
+- `/fear` 可查詢最新 Fear & Greed 指數
 
 ### 推播訊息格式範例
 

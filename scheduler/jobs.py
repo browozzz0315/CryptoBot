@@ -6,6 +6,7 @@ from loguru import logger
 from telegram.ext import Application
 
 from bot.formatters import format_market_summary
+from storage.candles import CandleRecord
 
 
 async def push_market_summary(application: Application) -> None:
@@ -33,3 +34,34 @@ async def push_market_summary(application: Application) -> None:
         )
 
     await application.bot.send_message(chat_id=chat_id, text=message)
+
+
+async def sync_market_history(application: Application) -> None:
+    settings = application.bot_data["settings"]
+    coingecko_client = application.bot_data["coingecko_client"]
+    candle_repository = application.bot_data["candle_repository"]
+
+    if not settings.history.enabled:
+        logger.info("History sync skipped because it is disabled in config.")
+        return
+
+    total_written = 0
+    for symbol in settings.market.tracked_symbols:
+        candle_rows = await coingecko_client.get_ohlc(symbol, settings.history.ohlc_days)
+        records = [
+            CandleRecord(
+                symbol=str(row["symbol"]),
+                timeframe=str(row["timeframe"]),
+                source=str(row["source"]),
+                open_time=row["open_time"],
+                close_time=row["close_time"],
+                open_price=float(row["open_price"]),
+                high_price=float(row["high_price"]),
+                low_price=float(row["low_price"]),
+                close_price=float(row["close_price"]),
+            )
+            for row in candle_rows
+        ]
+        total_written += await candle_repository.upsert_candles(records)
+
+    logger.info("History sync completed. Upserted {} candle rows.", total_written)

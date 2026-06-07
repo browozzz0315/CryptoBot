@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from scheduler.jobs import push_market_summary
+from scheduler.jobs import push_market_summary, sync_market_history
 
 
 def configure_scheduler(application, settings) -> AsyncIOScheduler:
@@ -15,6 +15,16 @@ def configure_scheduler(application, settings) -> AsyncIOScheduler:
             minutes=settings.push.interval_minutes,
             kwargs={"application": application},
             id="market_summary_push",
+            replace_existing=True,
+        )
+
+    if settings.history.enabled:
+        scheduler.add_job(
+            sync_market_history,
+            trigger="interval",
+            minutes=settings.history.sync_interval_minutes,
+            kwargs={"application": application},
+            id="market_history_sync",
             replace_existing=True,
         )
 

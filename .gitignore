@@ -17,6 +17,7 @@ htmlcov/
 
 *.log
 logs/
+runtime/
 
 .DS_Store
 Thumbs.db

@@ -9,14 +9,17 @@ from bot.formatters import format_startup_message
 from bot.handlers.commands import fear_command, help_command, price_command, start_command
 from data.coingecko import CoinGeckoClient
 from data.fear_greed import FearGreedClient
-from scheduler.jobs import push_market_summary
+from scheduler.jobs import push_market_summary, sync_market_history
 from scheduler.runner import configure_scheduler
+from storage.candles import CandleRepository
+from storage.database import create_engine, create_session_factory, init_database
 from utils.config_loader import load_settings
 from utils.logger import setup_logger
 
 
 async def post_init(application: Application) -> None:
     settings = application.bot_data["settings"]
+    await init_database(application.bot_data["db_engine"])
     scheduler = configure_scheduler(application, settings)
     scheduler.start()
     application.bot_data["scheduler"] = scheduler
@@ -37,6 +40,12 @@ async def post_init(application: Application) -> None:
         except Exception:  # noqa: BLE001
             logger.exception("Failed to send initial market summary during startup")
 
+    if settings.history.enabled and settings.history.sync_on_startup:
+        try:
+            await sync_market_history(application)
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to sync market history during startup")
+
 
 async def post_shutdown(application: Application) -> None:
     scheduler = application.bot_data.get("scheduler")
@@ -50,6 +59,10 @@ async def post_shutdown(application: Application) -> None:
     fear_greed_client = application.bot_data.get("fear_greed_client")
     if fear_greed_client:
         await fear_greed_client.aclose()
+
+    db_engine = application.bot_data.get("db_engine")
+    if db_engine:
+        await db_engine.dispose()
 
 
 def build_application() -> Application:
@@ -66,6 +79,13 @@ def build_application() -> Application:
 
     application.bot_data["settings"] = settings
     application.bot_data["startup_started_at"] = perf_counter()
+    application.bot_data["db_engine"] = create_engine(settings.storage.database_url)
+    application.bot_data["db_session_factory"] = create_session_factory(
+        application.bot_data["db_engine"]
+    )
+    application.bot_data["candle_repository"] = CandleRepository(
+        application.bot_data["db_session_factory"]
+    )
     application.bot_data["coingecko_client"] = CoinGeckoClient(
         base_url=settings.api.coingecko.base_url,
         api_key=settings.coingecko_api_key,

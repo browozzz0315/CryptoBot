@@ -30,6 +30,19 @@ class PushConfig:
 
 
 @dataclass(slots=True)
+class StorageConfig:
+    database_url: str
+
+
+@dataclass(slots=True)
+class HistoryConfig:
+    enabled: bool
+    sync_on_startup: bool
+    sync_interval_minutes: int
+    ohlc_days: int
+
+
+@dataclass(slots=True)
 class CoinGeckoConfig:
     base_url: str
 
@@ -52,6 +65,8 @@ class Settings:
     app: AppConfig
     market: MarketConfig
     push: PushConfig
+    storage: StorageConfig
+    history: HistoryConfig
     api: ApiConfig
 
 
@@ -87,6 +102,18 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             enabled=bool(raw_config["push"]["enabled"]),
             interval_minutes=int(raw_config["push"]["interval_minutes"]),
             chat_id=str(push_chat_id) if push_chat_id else None,
+        ),
+        storage=StorageConfig(
+            database_url=os.getenv(
+                "DATABASE_URL",
+                raw_config["storage"]["database_url"],
+            ),
+        ),
+        history=HistoryConfig(
+            enabled=bool(raw_config["history"]["enabled"]),
+            sync_on_startup=bool(raw_config["history"]["sync_on_startup"]),
+            sync_interval_minutes=int(raw_config["history"]["sync_interval_minutes"]),
+            ohlc_days=int(raw_config["history"]["ohlc_days"]),
         ),
         api=ApiConfig(
             coingecko=CoinGeckoConfig(

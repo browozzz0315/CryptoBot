@@ -110,6 +110,45 @@ class CoinGeckoClient:
             quotes.append(quote)
         return quotes
 
+    @retry_on_request_error
+    async def get_ohlc(self, symbol: str, days: int) -> list[dict[str, float | str | datetime]]:
+        normalized_symbol = self.normalize_symbol(symbol)
+        coin_id = self._resolve_coin_id(normalized_symbol)
+        timeframe, interval_seconds = self._resolve_ohlc_granularity(days)
+
+        response = await self._client.get(
+            f"/coins/{coin_id}/ohlc",
+            params={
+                "vs_currency": self.quote_currency,
+                "days": days,
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        candles = []
+        for row in payload:
+            close_time = datetime.fromtimestamp(int(row[0]) / 1000, tz=UTC)
+            open_time = datetime.fromtimestamp(
+                (int(row[0]) / 1000) - interval_seconds,
+                tz=UTC,
+            )
+            candles.append(
+                {
+                    "symbol": normalized_symbol,
+                    "timeframe": timeframe,
+                    "source": "coingecko",
+                    "open_time": open_time,
+                    "close_time": close_time,
+                    "open_price": float(row[1]),
+                    "high_price": float(row[2]),
+                    "low_price": float(row[3]),
+                    "close_price": float(row[4]),
+                }
+            )
+
+        return candles
+
     def _resolve_coin_id(self, symbol: str) -> str:
         if symbol not in SYMBOL_TO_COINGECKO_ID:
             raise ValueError(
@@ -132,3 +171,12 @@ class CoinGeckoClient:
 
     def supported_symbols(self) -> list[str]:
         return sorted(SYMBOL_TO_COINGECKO_ID.keys())
+
+    def _resolve_ohlc_granularity(self, days: int) -> tuple[str, int]:
+        if days in (1, 2):
+            return ("30m", 30 * 60)
+        if days in (7, 14, 30):
+            return ("4h", 4 * 60 * 60)
+        if days in (90, 180, 365):
+            return ("4d", 4 * 24 * 60 * 60)
+        raise ValueError("CoinGecko OHLC days 僅支援 1, 2, 7, 14, 30, 90, 180, 365")

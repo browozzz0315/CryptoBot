@@ -1,6 +1,6 @@
 # 加密貨幣監控推播機器人 — 專案企劃書
 
-> **文件版本**：v1.1  
+> **文件版本**：v1.2  
 > **建立日期**：2026-06-07  
 > **主要技術**：Python · Telegram Bot · 爬蟲 · 自動化交易  
 > **協作方式**：本文件供 LLM 協作開發使用，各節均可獨立作為任務上下文
@@ -65,8 +65,9 @@
 **目標**：加入技術指標、歷史資料、用戶自訂警報。
 
 **里程碑**：
-- RSI、MACD、布林帶指標計算正確
+- RSI、MACD 基礎指標模組完成
 - SQLite 儲存 K 線歷史資料（至少 30 天）
+- CoinGecko OHLC 歷史資料可同步寫入 SQLite
 - 用戶可透過 Bot 設定價格突破警報
 - 圖表圖片可傳送至 Telegram
 
@@ -194,7 +195,7 @@ crypto-bot/
 │
 ├── analysis/                   # 分析與策略模組
 │   ├── __init__.py
-│   ├── indicators.py           # 技術指標計算（pandas-ta 封裝）
+│   ├── indicators.py           # 技術指標計算（目前為內建 SMA/EMA/RSI/MACD）
 │   ├── signals.py              # 買賣信號生成邏輯
 │   ├── screener.py             # 多幣種篩選器
 │   └── ai_summary.py          # Claude API 市場摘要（Phase 3）
@@ -260,9 +261,11 @@ crypto-bot/
 
 | 工具 | 用途 | 選用原因 |
 |------|------|----------|
-| `pandas` | 時序資料處理 | OHLCV 操作的標準工具 |
-| `pandas-ta` | 技術指標 | 一行呼叫 130+ 指標，無需手寫公式 |
-| `numpy` | 數值計算 | pandas 底層依賴，信號過濾用 |
+| `SQLAlchemy` | ORM / Async DB | 建立 SQLite/未來 PostgreSQL 的統一儲存介面 |
+| `aiosqlite` | Async SQLite Driver | 與 SQLAlchemy async 搭配，作為 Phase 2 本地資料庫 |
+| `pandas` | 時序資料處理 | OHLCV 操作的標準工具（後續擴充） |
+| `pandas-ta` | 技術指標 | 一行呼叫 130+ 指標，無需手寫公式（後續擴充） |
+| `numpy` | 數值計算 | pandas 底層依賴，信號過濾用（後續擴充） |
 | `ccxt` | 交易所資料 | 統一介面抓 100+ 交易所 K 線（Phase 2+） |
 | `anthropic` | Claude API | AI 市場摘要與異常解讀（Phase 3） |
 
@@ -277,7 +280,7 @@ crypto-bot/
 
 | 工具 | 用途 | 選用原因 |
 |------|------|----------|
-| `SQLite` | Phase 1 本地資料庫 | 零配置，適合開發與單機部署 |
+| `SQLite` | Phase 2 本地資料庫 | 零配置，適合開發與單機部署 |
 | `PostgreSQL` | Phase 2+ 生產資料庫 | 支援大量時序資料，擴充性佳 |
 | `SQLAlchemy` | ORM | 統一資料庫操作介面，方便切換 DB |
 | `Redis`（可選） | 快取 + 任務佇列 | 避免重複 API 呼叫，Celery 搭配用 |
@@ -389,6 +392,8 @@ python-dotenv==1.0.1
 pyyaml==6.0.1
 tenacity==8.3.0
 loguru==0.7.2
+SQLAlchemy==2.0.41
+aiosqlite==0.21.0
 ```
 
 ### 已完成現況（截至 2026-06-07）
@@ -398,6 +403,9 @@ loguru==0.7.2
 - `/price` 支援 `BTC`、`btc`、`BTCUSDT` 這類常見輸入
 - `/price` 回覆包含價格、24h 漲跌、24h 區間、成交量、市值、資料時間
 - `/fear` 可查詢最新 Fear & Greed 指數
+- 已建立 `storage/` 模組，使用 `SQLite + SQLAlchemy async` 儲存 K 線
+- 已建立 `analysis/indicators.py`，包含 `SMA / EMA / RSI / MACD`
+- 已建立 CoinGecko OHLC 同步流程，可將追蹤幣種歷史 K 線寫入 SQLite
 
 ### 推播訊息格式範例
 

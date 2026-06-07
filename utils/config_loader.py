@@ -43,6 +43,12 @@ class HistoryConfig:
 
 
 @dataclass(slots=True)
+class AlertsConfig:
+    enabled: bool
+    check_interval_minutes: int
+
+
+@dataclass(slots=True)
 class CoinGeckoConfig:
     base_url: str
 
@@ -67,6 +73,7 @@ class Settings:
     push: PushConfig
     storage: StorageConfig
     history: HistoryConfig
+    alerts: AlertsConfig
     api: ApiConfig
 
 
@@ -114,6 +121,10 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             sync_on_startup=bool(raw_config["history"]["sync_on_startup"]),
             sync_interval_minutes=int(raw_config["history"]["sync_interval_minutes"]),
             ohlc_days=int(raw_config["history"]["ohlc_days"]),
+        ),
+        alerts=AlertsConfig(
+            enabled=bool(raw_config["alerts"]["enabled"]),
+            check_interval_minutes=int(raw_config["alerts"]["check_interval_minutes"]),
         ),
         api=ApiConfig(
             coingecko=CoinGeckoConfig(

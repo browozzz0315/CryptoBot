@@ -6,11 +6,20 @@ from loguru import logger
 from telegram.ext import Application, CommandHandler
 
 from bot.formatters import format_startup_message
-from bot.handlers.commands import fear_command, help_command, price_command, start_command
+from bot.handlers.commands import (
+    delete_alert_command,
+    fear_command,
+    help_command,
+    list_alerts_command,
+    price_command,
+    set_alert_command,
+    start_command,
+)
 from data.coingecko import CoinGeckoClient
 from data.fear_greed import FearGreedClient
 from scheduler.jobs import push_market_summary, sync_market_history
 from scheduler.runner import configure_scheduler
+from storage.alerts import AlertRepository
 from storage.candles import CandleRepository
 from storage.database import create_engine, create_session_factory, init_database
 from utils.config_loader import load_settings
@@ -86,6 +95,9 @@ def build_application() -> Application:
     application.bot_data["candle_repository"] = CandleRepository(
         application.bot_data["db_session_factory"]
     )
+    application.bot_data["alert_repository"] = AlertRepository(
+        application.bot_data["db_session_factory"]
+    )
     application.bot_data["coingecko_client"] = CoinGeckoClient(
         base_url=settings.api.coingecko.base_url,
         api_key=settings.coingecko_api_key,
@@ -99,6 +111,9 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("price", price_command))
     application.add_handler(CommandHandler("fear", fear_command))
+    application.add_handler(CommandHandler("setalert", set_alert_command))
+    application.add_handler(CommandHandler("listalerts", list_alerts_command))
+    application.add_handler(CommandHandler("deletealert", delete_alert_command))
     return application
 
 

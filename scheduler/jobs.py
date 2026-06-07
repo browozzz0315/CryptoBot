@@ -6,6 +6,7 @@ from loguru import logger
 from telegram.ext import Application
 
 from bot.formatters import format_market_summary
+from bot.formatters import format_alert_triggered_message
 from storage.candles import CandleRecord
 
 
@@ -65,3 +66,46 @@ async def sync_market_history(application: Application) -> None:
         total_written += await candle_repository.upsert_candles(records)
 
     logger.info("History sync completed. Upserted {} candle rows.", total_written)
+
+
+async def check_price_alerts(application: Application) -> None:
+    settings = application.bot_data["settings"]
+    if not settings.alerts.enabled:
+        return
+
+    alert_repository = application.bot_data["alert_repository"]
+    coingecko_client = application.bot_data["coingecko_client"]
+    active_alerts = await alert_repository.list_active_alerts()
+    if not active_alerts:
+        return
+
+    symbol_quotes: dict[str, dict[str, float | str | datetime]] = {}
+    for alert in active_alerts:
+        symbol = alert.symbol.upper()
+        if symbol not in symbol_quotes:
+            try:
+                symbol_quotes[symbol] = await coingecko_client.get_price(symbol)
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to fetch price while evaluating alerts for {}", symbol)
+                continue
+
+        quote = symbol_quotes[symbol]
+        current_price = float(quote["price"])
+        should_trigger = (
+            alert.direction == "above" and current_price >= alert.target_price
+        ) or (
+            alert.direction == "below" and current_price <= alert.target_price
+        )
+        if not should_trigger:
+            continue
+
+        await application.bot.send_message(
+            chat_id=alert.chat_id,
+            text=format_alert_triggered_message(
+                symbol=symbol,
+                direction=alert.direction,
+                target_price=alert.target_price,
+                current_price=current_price,
+            ),
+        )
+        await alert_repository.mark_triggered(alert.id)

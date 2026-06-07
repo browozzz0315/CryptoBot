@@ -1,6 +1,6 @@
 # 加密貨幣監控推播機器人 — 專案企劃書
 
-> **文件版本**：v1.2  
+> **文件版本**：v1.3  
 > **建立日期**：2026-06-07  
 > **主要技術**：Python · Telegram Bot · 爬蟲 · 自動化交易  
 > **協作方式**：本文件供 LLM 協作開發使用，各節均可獨立作為任務上下文
@@ -69,6 +69,7 @@
 - SQLite 儲存 K 線歷史資料（至少 30 天）
 - CoinGecko OHLC 歷史資料可同步寫入 SQLite
 - 用戶可透過 Bot 設定價格突破警報
+- 警報可由排程自動檢查並在觸發後推播
 - 圖表圖片可傳送至 Telegram
 
 ### Phase 3 — 智能進化（預估 4–6 週）
@@ -104,7 +105,7 @@
 |------|------|--------|
 | 技術指標 | RSI、MACD、布林帶、ATR（使用 pandas-ta） | P0 |
 | 歷史資料儲存 | SQLite 儲存 OHLCV K 線，支援多幣種多時框 | P0 |
-| 價格警報 | 用戶設定突破條件，觸發時立即推播 | P0 |
+| 價格警報 | 用戶可透過 `/setalert` 建立條件，排程檢查後立即推播 | P0 |
 | 多幣種篩選 | 24h 漲幅 Top 10、成交量異動等篩選推播 | P1 |
 | 圖表生成 | K 線圖 + 指標疊加，以圖片傳至 Telegram | P1 |
 | 用戶訂閱制 | 每位用戶可自訂追蹤幣種與推播頻率 | P1 |
@@ -196,7 +197,7 @@ crypto-bot/
 ├── analysis/                   # 分析與策略模組
 │   ├── __init__.py
 │   ├── indicators.py           # 技術指標計算（目前為內建 SMA/EMA/RSI/MACD）
-│   ├── signals.py              # 買賣信號生成邏輯
+│   ├── signals.py              # 指標快照與訊號摘要邏輯
 │   ├── screener.py             # 多幣種篩選器
 │   └── ai_summary.py          # Claude API 市場摘要（Phase 3）
 │
@@ -204,6 +205,7 @@ crypto-bot/
 │   ├── __init__.py
 │   ├── database.py             # SQLAlchemy 設定、連線管理
 │   ├── models.py               # ORM 資料表定義
+│   ├── alerts.py               # 價格警報 CRUD
 │   ├── candles.py              # K 線資料 CRUD
 │   └── users.py                # 用戶設定 CRUD
 │
@@ -406,6 +408,10 @@ aiosqlite==0.21.0
 - 已建立 `storage/` 模組，使用 `SQLite + SQLAlchemy async` 儲存 K 線
 - 已建立 `analysis/indicators.py`，包含 `SMA / EMA / RSI / MACD`
 - 已建立 CoinGecko OHLC 同步流程，可將追蹤幣種歷史 K 線寫入 SQLite
+- 已建立價格警報資料表與 `AlertRepository`
+- 已支援 `/setalert`、`/listalerts`、`/deletealert`
+- 已加入價格警報排程檢查，觸發後會自動推播並停用警報
+- `/price` 在有歷史 K 線資料時，會附上 RSI / MACD 指標摘要
 
 ### 推播訊息格式範例
 

@@ -23,6 +23,10 @@ history:
   sync_interval_minutes: 360
   ohlc_days: 30
 
+alerts:
+  enabled: true
+  check_interval_minutes: 1
+
 api:
   coingecko:
     base_url: https://api.coingecko.com/api/v3

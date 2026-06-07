@@ -84,3 +84,20 @@ class CandleRepository:
         async with self._session_factory() as session:
             result = await session.execute(query)
             return list(result.scalars().all())
+
+    async def list_close_prices(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        source: str,
+        limit: int = 100,
+    ) -> list[float]:
+        candles = await self.list_candles(
+            symbol=symbol,
+            timeframe=timeframe,
+            source=source,
+            limit=limit,
+        )
+        candles = list(reversed(candles))
+        return [candle.close_price for candle in candles]

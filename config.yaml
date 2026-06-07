@@ -17,3 +17,5 @@ push:
 api:
   coingecko:
     base_url: https://api.coingecko.com/api/v3
+  fear_greed:
+    base_url: https://api.alternative.me

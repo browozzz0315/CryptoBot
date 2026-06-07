@@ -35,8 +35,14 @@ class CoinGeckoConfig:
 
 
 @dataclass(slots=True)
+class FearGreedConfig:
+    base_url: str
+
+
+@dataclass(slots=True)
 class ApiConfig:
     coingecko: CoinGeckoConfig
+    fear_greed: FearGreedConfig
 
 
 @dataclass(slots=True)
@@ -85,6 +91,9 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
         api=ApiConfig(
             coingecko=CoinGeckoConfig(
                 base_url=raw_config["api"]["coingecko"]["base_url"],
-            )
+            ),
+            fear_greed=FearGreedConfig(
+                base_url=raw_config["api"]["fear_greed"]["base_url"],
+            ),
         ),
     )

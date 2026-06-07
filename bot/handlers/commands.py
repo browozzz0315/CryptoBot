@@ -17,6 +17,7 @@ from bot.formatters import (
 )
 from charts.candlestick import render_price_chart
 from loguru import logger
+from scheduler.jobs import push_strategy_radar
 from storage.candles import CandleRecord
 from storage.alerts import PriceAlertRecord
 from storage.users import UserSubscriptionRecord
@@ -38,7 +39,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "/subscribe BTC - 訂閱幣種\n"
         "/unsubscribe BTC - 取消訂閱\n"
         "/subscriptions - 查看訂閱\n"
-        "/chart BTC - 取得圖表"
+        "/chart BTC - 取得圖表\n"
+        "/radar - 取得策略雷達推播"
     )
 
 
@@ -57,7 +59,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/subscribe <symbol> - 訂閱幣種\n"
         "/unsubscribe <symbol> - 取消訂閱幣種\n"
         "/subscriptions - 查看已訂閱幣種\n"
-        "/chart <symbol> - 產生價格圖表"
+        "/chart <symbol> - 產生價格圖表\n"
+        "/radar - 產生策略雷達摘要"
     )
 
 
@@ -419,3 +422,14 @@ async def _send_screener_result(update: Update, context: ContextTypes.DEFAULT_TY
         ranked = top_volume(quotes, settings.screener.top_n)
 
     await update.message.reply_text(format_screener_message(title, ranked))
+
+
+async def radar_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    try:
+        message = await push_strategy_radar(context.application, deliver=False)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to generate strategy radar")
+        await update.message.reply_text(f"產生策略雷達失敗：{exc}")
+        return
+
+    await update.message.reply_text(message)

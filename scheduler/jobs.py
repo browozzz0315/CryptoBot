@@ -5,8 +5,19 @@ from datetime import datetime
 from loguru import logger
 from telegram.ext import Application
 
+from analysis.radar import (
+    RadarEntry,
+    build_ambush_rank,
+    build_composite_rank,
+    build_heat_rank,
+    build_highlights,
+    build_long_rank,
+    calculate_oi_change_pct,
+    estimate_sideways_days,
+)
 from bot.formatters import format_market_summary
 from bot.formatters import format_alert_triggered_message
+from bot.formatters import format_radar_message
 from storage.candles import CandleRecord
 
 
@@ -58,7 +69,13 @@ async def sync_market_history(application: Application) -> None:
         return
 
     total_written = 0
-    for symbol in settings.market.tracked_symbols:
+    symbols_to_sync = set(settings.market.tracked_symbols)
+    if settings.screener.enabled:
+        symbols_to_sync.update(settings.screener.symbols)
+    if settings.radar.enabled:
+        symbols_to_sync.update(settings.radar.symbols)
+
+    for symbol in sorted(symbols_to_sync):
         candle_rows = await coingecko_client.get_ohlc(symbol, settings.history.ohlc_days)
         records = [
             CandleRecord(
@@ -128,3 +145,121 @@ async def _load_subscription_map(user_subscription_repository) -> dict[str, list
     for subscription in subscriptions:
         grouped.setdefault(subscription.chat_id, []).append(subscription.symbol)
     return grouped
+
+
+async def push_strategy_radar(application: Application, *, deliver: bool = True) -> str:
+    settings = application.bot_data["settings"]
+    if not settings.radar.enabled:
+        raise ValueError("雷達功能已停用。")
+
+    coingecko_client = application.bot_data["coingecko_client"]
+    binance_futures_client = application.bot_data["binance_futures_client"]
+    candle_repository = application.bot_data["candle_repository"]
+
+    quotes = await coingecko_client.get_prices(settings.radar.symbols)
+    try:
+        trending_symbols = set(await coingecko_client.get_trending_symbols())
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to fetch CoinGecko trending symbols for radar")
+        trending_symbols = set()
+
+    entries: list[RadarEntry] = []
+    for quote in quotes:
+        symbol = str(quote["symbol"])
+        funding_rate = None
+        oi_change_pct = None
+        long_short_ratio = None
+
+        try:
+            funding = await binance_futures_client.get_latest_funding_rate(symbol)
+            funding_rate = float(funding["funding_rate"]) * 100
+        except Exception:  # noqa: BLE001
+            logger.warning("Radar funding data unavailable for {}", symbol)
+
+        try:
+            oi_hist = await binance_futures_client.get_open_interest_hist(symbol, period="1d", limit=2)
+            oi_values = [float(item["open_interest_value"]) for item in oi_hist]
+            oi_change_pct = calculate_oi_change_pct(oi_values)
+        except Exception:  # noqa: BLE001
+            logger.warning("Radar OI data unavailable for {}", symbol)
+
+        try:
+            ratio = await binance_futures_client.get_top_long_short_ratio(symbol, period="1d", limit=1)
+            long_short_ratio = float(ratio["long_short_ratio"])
+        except Exception:  # noqa: BLE001
+            logger.warning("Radar long/short ratio unavailable for {}", symbol)
+
+        close_prices = await candle_repository.list_close_prices(
+            symbol=symbol,
+            timeframe="4h",
+            source="coingecko",
+            limit=settings.radar.sideways_lookback_candles,
+        )
+        if not close_prices and settings.history.enabled:
+            candle_rows = await coingecko_client.get_ohlc(symbol, settings.history.ohlc_days)
+            await candle_repository.upsert_candles(
+                [
+                    CandleRecord(
+                        symbol=str(row["symbol"]),
+                        timeframe=str(row["timeframe"]),
+                        source=str(row["source"]),
+                        open_time=row["open_time"],
+                        close_time=row["close_time"],
+                        open_price=float(row["open_price"]),
+                        high_price=float(row["high_price"]),
+                        low_price=float(row["low_price"]),
+                        close_price=float(row["close_price"]),
+                    )
+                    for row in candle_rows
+                ]
+            )
+            close_prices = await candle_repository.list_close_prices(
+                symbol=symbol,
+                timeframe="4h",
+                source="coingecko",
+                limit=settings.radar.sideways_lookback_candles,
+            )
+
+        sideways_days = estimate_sideways_days(
+            close_prices,
+            threshold_pct=settings.radar.sideways_threshold_pct,
+        )
+
+        entries.append(
+            RadarEntry(
+                symbol=symbol,
+                market_cap=float(quote["market_cap"]),
+                change_24h=float(quote["change_24h"]),
+                total_volume=float(quote["total_volume"]),
+                funding_rate=funding_rate,
+                oi_change_pct=oi_change_pct,
+                long_short_ratio=long_short_ratio,
+                sideways_days=sideways_days,
+                trending=symbol in trending_symbols,
+            )
+        )
+
+    heat_entries = build_heat_rank(entries, settings.radar.heat_top_n)
+    long_entries = build_long_rank(entries, settings.radar.long_top_n)
+    composite_entries = build_composite_rank(entries, settings.radar.composite_top_n)
+    ambush_entries = build_ambush_rank(entries, settings.radar.ambush_top_n)
+    highlights = build_highlights(
+        heat_entries=heat_entries,
+        long_entries=long_entries,
+        composite_entries=composite_entries,
+        ambush_entries=ambush_entries,
+    )
+
+    message = format_radar_message(
+        timestamp=datetime.utcnow(),
+        heat_entries=heat_entries,
+        long_entries=long_entries,
+        composite_entries=composite_entries,
+        ambush_entries=ambush_entries,
+        highlights=highlights,
+    )
+
+    if deliver and settings.push.chat_id and settings.radar.schedule_enabled:
+        await application.bot.send_message(chat_id=settings.push.chat_id, text=message)
+
+    return message

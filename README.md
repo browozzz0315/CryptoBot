@@ -1,6 +1,6 @@
 # CryptoBot
 
-CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-2 基礎版本。
+CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 基礎版本。
 
 ## 目前功能範圍
 
@@ -9,7 +9,9 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-2 �
 - `/topgainers`、`/toplosers`、`/topvolume` 多幣種篩選指令
 - `/subscribe`、`/unsubscribe`、`/subscriptions` 訂閱制指令
 - `/chart <symbol>` 圖表輸出指令
+- `/radar` 策略雷達推播摘要指令
 - 使用 CoinGecko 免費 keyless API 查詢更完整的市場快照
+- 使用 Binance Futures 公開市場資料取得 Funding / OI / Long-Short Ratio
 - 整合 Alternative.me Fear & Greed 市場情緒指數
 - 啟動通知與立即市場快報推播
 - APScheduler 定期市場快報推播
@@ -18,7 +20,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-2 �
 - 內建 SMA、EMA、RSI、MACD 指標輔助函式
 - 排程價格警報檢查，採一次性觸發後自動停用
 - 使用者可自訂訂閱幣種，排程推播會依訂閱內容送出摘要
-- 內建多幣種排行篩選與價格圖表輸出
+- 內建多幣種排行篩選、價格圖表輸出與策略雷達推播
 - `.env` + `config.yaml` 設定載入
 - `loguru` 日誌記錄
 
@@ -28,7 +30,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-2 �
 2. 將 `.env.example` 複製為 `.env`，並填入 `TELEGRAM_BOT_TOKEN`。
 3. 視需要更新 `config.yaml`。
 4. 執行 `python -m bot.main`
-5. 在 Telegram 測試 `/price BTC`、`/fear`、`/setalert BTC above 70000`、`/topgainers`、`/chart BTC`
+5. 在 Telegram 測試 `/price BTC`、`/fear`、`/setalert BTC above 70000`、`/topgainers`、`/chart BTC`、`/radar`
 
 ## Phase 2 基礎功能
 
@@ -41,6 +43,13 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-2 �
 - 使用者訂閱資料會儲存在 SQLite，並影響定時摘要推播內容
 - 圖表功能會輸出本地 PNG 檔，再由 Telegram 送出
 - 歷史資料同步由 `config.yaml` 中的 `history` 區塊控制
+
+## Phase 3 MVP：策略雷達
+
+- 整合 CoinGecko trending 與市場快照
+- 整合 Binance Futures 公開 Funding / Open Interest / Top Long-Short Ratio
+- 產生熱度榜、追多榜、綜合榜、埋伏榜與值得關注摘要
+- 可手動透過 `/radar` 查詢，也可透過排程主動推播
 
 ## `/price` 行為
 
@@ -69,6 +78,10 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-2 �
 - `/subscriptions`
 - `/chart BTC`
 
+## 雷達指令
+
+- `/radar`
+
 ## 注意事項
 
 - 若要使用排程推播，必須設定 `TELEGRAM_DEFAULT_CHAT_ID` 或 `push.chat_id`
@@ -77,3 +90,4 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-2 �
 - SQLite 執行期資料會存放在 `runtime/`，且已被 git 忽略
 - 觸發過的警報為一次性警報，送出後會自動停用
 - Matplotlib 設定快取會寫入 `runtime/mplconfig`，避免系統權限問題
+- 策略雷達目前屬於規則引擎 MVP，分數與文字摘要可於後續再調參數

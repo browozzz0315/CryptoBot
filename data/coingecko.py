@@ -21,7 +21,8 @@ SYMBOL_TO_COINGECKO_ID = {
     "LINK": "chainlink",
     "TON": "the-open-network",
     "DOT": "polkadot",
-    "MATIC": "matic-network",
+    "MATIC": "polygon-ecosystem-token",
+    "POL": "polygon-ecosystem-token",
     "SUI": "sui",
 }
 
@@ -109,6 +110,19 @@ class CoinGeckoClient:
             quote = await self.get_price(symbol)
             quotes.append(quote)
         return quotes
+
+    @retry_on_request_error
+    async def get_trending_symbols(self) -> list[str]:
+        response = await self._client.get("/search/trending")
+        response.raise_for_status()
+        payload = response.json()
+        symbols: list[str] = []
+        for item in payload.get("coins", []):
+            coin_item = item.get("item", {})
+            symbol = str(coin_item.get("symbol", "")).upper()
+            if symbol:
+                symbols.append(symbol)
+        return symbols
 
     @retry_on_request_error
     async def get_ohlc(self, symbol: str, days: int) -> list[dict[str, float | str | datetime]]:

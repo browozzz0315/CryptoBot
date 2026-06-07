@@ -51,8 +51,36 @@ charts:
   output_dir: runtime/charts
   default_limit: 60
 
+radar:
+  enabled: true
+  schedule_enabled: true
+  interval_minutes: 180
+  symbols:
+    - BTC
+    - ETH
+    - SOL
+    - BNB
+    - XRP
+    - DOGE
+    - ADA
+    - TRX
+    - AVAX
+    - LINK
+    - TON
+    - DOT
+    - MATIC
+    - SUI
+  heat_top_n: 8
+  long_top_n: 5
+  composite_top_n: 8
+  ambush_top_n: 8
+  sideways_lookback_candles: 30
+  sideways_threshold_pct: 12.0
+
 api:
   coingecko:
     base_url: https://api.coingecko.com/api/v3
   fear_greed:
     base_url: https://api.alternative.me
+  binance_futures:
+    base_url: https://fapi.binance.com

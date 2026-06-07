@@ -13,6 +13,7 @@ from bot.handlers.commands import (
     help_command,
     list_alerts_command,
     price_command,
+    radar_command,
     subscribe_command,
     subscriptions_command,
     set_alert_command,
@@ -22,6 +23,7 @@ from bot.handlers.commands import (
     top_volume_command,
     unsubscribe_command,
 )
+from data.binance_futures import BinanceFuturesClient
 from data.coingecko import CoinGeckoClient
 from data.fear_greed import FearGreedClient
 from scheduler.jobs import push_market_summary, sync_market_history
@@ -77,6 +79,10 @@ async def post_shutdown(application: Application) -> None:
     if fear_greed_client:
         await fear_greed_client.aclose()
 
+    binance_futures_client = application.bot_data.get("binance_futures_client")
+    if binance_futures_client:
+        await binance_futures_client.aclose()
+
     db_engine = application.bot_data.get("db_engine")
     if db_engine:
         await db_engine.dispose()
@@ -114,6 +120,9 @@ def build_application() -> Application:
         api_key=settings.coingecko_api_key,
         quote_currency=settings.market.quote_currency,
     )
+    application.bot_data["binance_futures_client"] = BinanceFuturesClient(
+        base_url=settings.api.binance_futures.base_url,
+    )
     application.bot_data["fear_greed_client"] = FearGreedClient(
         base_url=settings.api.fear_greed.base_url,
     )
@@ -132,6 +141,7 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
     application.add_handler(CommandHandler("subscriptions", subscriptions_command))
     application.add_handler(CommandHandler("chart", chart_command))
+    application.add_handler(CommandHandler("radar", radar_command))
     return application
 
 

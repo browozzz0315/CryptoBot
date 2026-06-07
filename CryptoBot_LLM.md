@@ -1,8 +1,8 @@
 # 加密貨幣監控推播機器人 — 專案企劃書
 
-> **文件版本**：v1.4  
+> **文件版本**：v1.5  
 > **建立日期**：2026-06-07  
-> **主要技術**：Python · Telegram Bot · 爬蟲 · 自動化交易  
+> **主要技術**：Python · Telegram Bot · 爬蟲 · 策略雷達 · 自動化交易  
 > **協作方式**：本文件供 LLM 協作開發使用，各節均可獨立作為任務上下文
 
 ---
@@ -74,7 +74,17 @@
 - 使用者可自訂訂閱幣種
 - 圖表圖片可傳送至 Telegram
 
-### Phase 3 — 智能進化（預估 4–6 週）
+### Phase 3 — 策略雷達推播（預估 3–5 週）
+
+**目標**：整合熱度、Funding、OI、Long/Short、橫盤等因子，主動推播值得關注的幣種與策略摘要。
+
+**里程碑**：
+- CoinGecko trending + Binance Futures 公開資料整合完成
+- 雷達可輸出熱度榜、追多榜、綜合榜、埋伏榜
+- 雷達可產出「值得關注」摘要
+- `/radar` 指令與定時雷達推播上線
+
+### Phase 4 — 智能進化與交易（預估 4–6 週）
 
 **目標**：AI 輔助分析、模擬交易、真實下單。
 
@@ -117,6 +127,18 @@
 
 | 功能 | 說明 | 優先級 |
 |------|------|--------|
+| 策略雷達 | 整合熱搜、Funding、OI、Long/Short、橫盤等因子做多榜單推播 | P0 |
+| 熱度榜 | CoinGecko trending + 價格/成交量/OI 組合 | P0 |
+| 追多榜 | 依負 funding、價格動能、OI 變化排序 | P0 |
+| 綜合榜 | Funding + 市值 + 橫盤 + OI 綜合評分 | P0 |
+| 埋伏榜 | 小市值 + 橫盤 + OI 暗流 + funding 組合評分 | P1 |
+| 主動摘要 | 規則引擎整理值得關注的幣種與理由 | P1 |
+| 定時推播 | 每日或每數小時自動推播雷達摘要 | P1 |
+
+### Phase 4 功能
+
+| 功能 | 說明 | 優先級 |
+|------|------|--------|
 | AI 市場摘要 | 呼叫 Claude API，生成每日市場解讀文字 | P0 |
 | 策略信號組合 | 多指標交叉驗證，生成買/賣/觀望信號 | P0 |
 | Paper Trading | 模擬下單、持倉、損益記錄，無真實資金風險 | P0 |
@@ -135,19 +157,19 @@
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   資料來源層                          │
-│  CoinGecko API  Binance WS  CoinAnk爬蟲  Fear&Greed │
+│ CoinGecko API Binance Futures API CoinAnk爬蟲 Fear&Greed │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────┐
 │                   資料處理層                          │
-│    資料清洗  指標計算(pandas-ta)  異常過濾             │
+│    資料清洗  指標計算  策略評分  異常過濾               │
 └──────────────────────┬──────────────────────────────┘
                        │
         ┌──────────────┼──────────────┐
         │              │              │
 ┌───────▼──────┐ ┌─────▼─────┐ ┌────▼──────────┐
 │   排程層      │ │  儲存層   │ │   分析層      │
-│ APScheduler  │ │ SQLite/PG │ │ 策略 / Claude │
+│ APScheduler  │ │ SQLite/PG │ │ 策略 / AI     │
 └───────┬──────┘ └─────┬─────┘ └────┬──────────┘
         │              │             │
 ┌───────▼──────────────▼─────────────▼──────────┐
@@ -191,6 +213,7 @@ crypto-bot/
 ├── data/                       # 資料抓取模組
 │   ├── __init__.py
 │   ├── coingecko.py            # CoinGecko API 封裝
+│   ├── binance_futures.py      # Binance Futures 公開衍生品資料
 │   ├── binance_ws.py           # Binance WebSocket 串流
 │   ├── coinank_scraper.py      # CoinAnk 爬蟲
 │   ├── fear_greed.py           # Alternative.me 恐懼貪婪指數
@@ -201,7 +224,8 @@ crypto-bot/
 │   ├── indicators.py           # 技術指標計算（目前為內建 SMA/EMA/RSI/MACD）
 │   ├── signals.py              # 指標快照與訊號摘要邏輯
 │   ├── screener.py             # 多幣種篩選器
-│   └── ai_summary.py          # Claude API 市場摘要（Phase 3）
+│   ├── radar.py                # 策略雷達評分與榜單生成
+│   └── ai_summary.py           # Claude API 市場摘要（Phase 4）
 │
 ├── storage/                    # 資料儲存模組
 │   ├── __init__.py
@@ -216,7 +240,7 @@ crypto-bot/
 │   ├── jobs.py                 # 定義所有排程任務
 │   └── runner.py               # APScheduler 設定與啟動
 │
-├── trading/                    # 交易模組（Phase 3）
+├── trading/                    # 交易模組（Phase 4）
 │   ├── __init__.py
 │   ├── exchange.py             # CCXT 交易所介面
 │   ├── paper_trading.py        # 模擬交易
@@ -270,8 +294,8 @@ crypto-bot/
 | `pandas` | 時序資料處理 | OHLCV 操作的標準工具（後續擴充） |
 | `pandas-ta` | 技術指標 | 一行呼叫 130+ 指標，無需手寫公式（後續擴充） |
 | `numpy` | 數值計算 | pandas 底層依賴，信號過濾用（後續擴充） |
-| `ccxt` | 交易所資料 | 統一介面抓 100+ 交易所 K 線（Phase 2+） |
-| `anthropic` | Claude API | AI 市場摘要與異常解讀（Phase 3） |
+| `ccxt` | 交易所資料 | 統一介面抓 100+ 交易所 K 線與交易接口（Phase 4） |
+| `anthropic` | Claude API | AI 市場摘要與異常解讀（Phase 4） |
 
 ### 推播層
 
@@ -308,6 +332,7 @@ crypto-bot/
 | CoinGecko | 價格、市值、交易量、歷史 K 線 | 30 req/min（免費） | 最穩定的免費加密貨幣 API |
 | Alternative.me | 恐懼貪婪指數 | 無明顯限制 | 簡單易用 |
 | Binance Public API | K 線、深度、成交 | 1200 req/min | 免登入即可使用 |
+| Binance Futures Public API | Funding、Open Interest、Long/Short Ratio | 公開端點，依端點各自限流 | 策略雷達的主要衍生品資料來源 |
 | Binance WebSocket | 即時 Tick、K 線串流 | - | 適合需要低延遲的場景 |
 
 ### 需爬蟲的頁面
@@ -340,7 +365,7 @@ crypto-bot/
 | 資料庫資料遺失 | 中 | 定期備份（cron + pg_dump），重要資料雙重寫入 |
 | 時區與時間戳錯誤 | 低 | 統一使用 UTC 儲存，顯示時再轉換台灣時間 |
 
-### 財務風險（Phase 3 自動交易）
+### 財務風險（Phase 4 自動交易）
 
 | 風險 | 等級 | 因應措施 |
 |------|------|----------|
@@ -374,8 +399,8 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # 3. 建立 .env 檔案
 TELEGRAM_BOT_TOKEN=your_token_here
 COINGECKO_API_KEY=           # 免費版可留空
-BINANCE_API_KEY=             # Phase 3 才需要
-BINANCE_SECRET_KEY=          # Phase 3 才需要
+BINANCE_API_KEY=             # Phase 4 才需要
+BINANCE_SECRET_KEY=          # Phase 4 才需要
 ```
 
 ### Phase 1 最小可用版本（MVP）起手步驟
@@ -417,6 +442,11 @@ aiosqlite==0.21.0
 - 已支援 `/topgainers`、`/toplosers`、`/topvolume` 多幣種排行
 - 已支援 `/subscribe`、`/unsubscribe`、`/subscriptions` 用戶訂閱制
 - 已支援 `/chart` 生成並傳送價格圖表
+- 已加入 `BinanceFuturesClient`，可讀取 Funding Rate、Open Interest 與 Top Long/Short Ratio
+- 已支援 `/radar` 指令，可即時生成策略雷達摘要而不需等待定時推播
+- 已建立策略雷達排行榜：熱度榜、追多榜、綜合榜、埋伏榜
+- 已建立規則式「值得關注」摘要，依熱度、Funding、OI、橫盤與小市值條件組句
+- 已支援策略雷達定時推播設定，可獨立於一般市場快報開關與頻率
 
 ### 推播訊息格式範例
 
@@ -433,6 +463,46 @@ aiosqlite==0.21.0
 ─────────────────
 ⚠️ 警報觸發：ETH 跌破 $3,500 支撐位
 ```
+
+### Phase 3 策略雷達設計說明（供未來協作延續）
+
+#### 目前採用的資料來源
+
+- `CoinGecko markets`：價格、24h 漲跌、24h 成交量、市值
+- `CoinGecko trending`：熱搜幣種
+- `CoinGecko OHLC`：補足本地缺少的 K 線資料，用於估算橫盤天數
+- `Binance Futures fundingRate`：最新資金費率
+- `Binance Futures openInterestHist`：近 5m OI 變化
+- `Binance Futures topLongShortPositionRatio`：Top Trader Long/Short Ratio
+
+#### 目前 MVP 榜單邏輯
+
+- **熱度榜**：以 CoinGecko trending、24h 漲跌、24h 成交量、市值與 OI 變化做加權排序
+- **追多榜**：偏好 funding 為負、近端 Long/Short 偏多、OI 增加、價格不弱的幣種
+- **綜合榜**：Funding、OI 變化、市值、橫盤天數各自轉成分數後加總
+- **埋伏榜**：偏好小市值、長時間橫盤、OI 有暗流、Funding 偏負或接近中性的組合
+- **值得關注**：目前為規則引擎，不依賴 LLM，避免額外成本與不穩定輸出
+
+#### 橫盤與暗流的目前定義
+
+- **橫盤天數**：取近 N 根 OHLC K 線，計算高低區間占均價百分比；若區間低於設定閾值，則視為橫盤
+- **OI 暗流**：價格 24h 變化不大，但 OI 變化仍為正值，代表倉位正在累積
+- **Funding 惡化**：Funding 顯著轉負或負值擴大，可作為短線擁擠度參考
+
+#### 目前已知限制
+
+- CoinGecko free tier 與 Binance public API 都有速率限制，雷達追蹤幣種不宜無限制擴張
+- 並非所有 CoinGecko 幣種都能直接映射到 Binance Futures 合約，缺少衍生品資料時目前採降級處理
+- OI 與 Long/Short 目前以短週期快照估算，尚未建立多週期歷史統計基準
+- `值得關注` 目前是規則式摘要，尚未做回測驗證與命中率評估
+
+#### 下一步優化方向
+
+- 對 Funding、OI、Long/Short 建立本地歷史表，改成用 Z-score 或分位數做異常判斷
+- 為不同策略榜單分別建立可調整權重，而非寫死在程式內
+- 新增「熱度突然升溫」與「連續橫盤後放量」等事件型推播
+- 為 `/radar` 增加指定幣池、指定榜單數量與只看永續合約可交易標的的篩選
+- 等 Phase 4 再考慮把規則式摘要接上 AI 文案潤飾，而不是把核心判斷交給 LLM
 
 ---
 

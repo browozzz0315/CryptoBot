@@ -63,6 +63,20 @@ class ChartsConfig:
 
 
 @dataclass(slots=True)
+class RadarConfig:
+    enabled: bool
+    schedule_enabled: bool
+    interval_minutes: int
+    symbols: list[str]
+    heat_top_n: int
+    long_top_n: int
+    composite_top_n: int
+    ambush_top_n: int
+    sideways_lookback_candles: int
+    sideways_threshold_pct: float
+
+
+@dataclass(slots=True)
 class CoinGeckoConfig:
     base_url: str
 
@@ -73,9 +87,15 @@ class FearGreedConfig:
 
 
 @dataclass(slots=True)
+class BinanceFuturesConfig:
+    base_url: str
+
+
+@dataclass(slots=True)
 class ApiConfig:
     coingecko: CoinGeckoConfig
     fear_greed: FearGreedConfig
+    binance_futures: BinanceFuturesConfig
 
 
 @dataclass(slots=True)
@@ -90,6 +110,7 @@ class Settings:
     alerts: AlertsConfig
     screener: ScreenerConfig
     charts: ChartsConfig
+    radar: RadarConfig
     api: ApiConfig
 
 
@@ -152,12 +173,27 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             output_dir=raw_config["charts"]["output_dir"],
             default_limit=int(raw_config["charts"]["default_limit"]),
         ),
+        radar=RadarConfig(
+            enabled=bool(raw_config["radar"]["enabled"]),
+            schedule_enabled=bool(raw_config["radar"]["schedule_enabled"]),
+            interval_minutes=int(raw_config["radar"]["interval_minutes"]),
+            symbols=raw_config["radar"]["symbols"],
+            heat_top_n=int(raw_config["radar"]["heat_top_n"]),
+            long_top_n=int(raw_config["radar"]["long_top_n"]),
+            composite_top_n=int(raw_config["radar"]["composite_top_n"]),
+            ambush_top_n=int(raw_config["radar"]["ambush_top_n"]),
+            sideways_lookback_candles=int(raw_config["radar"]["sideways_lookback_candles"]),
+            sideways_threshold_pct=float(raw_config["radar"]["sideways_threshold_pct"]),
+        ),
         api=ApiConfig(
             coingecko=CoinGeckoConfig(
                 base_url=raw_config["api"]["coingecko"]["base_url"],
             ),
             fear_greed=FearGreedConfig(
                 base_url=raw_config["api"]["fear_greed"]["base_url"],
+            ),
+            binance_futures=BinanceFuturesConfig(
+                base_url=raw_config["api"]["binance_futures"]["base_url"],
             ),
         ),
     )

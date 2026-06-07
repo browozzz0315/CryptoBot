@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from scheduler.jobs import check_price_alerts, push_market_summary, sync_market_history
+from scheduler.jobs import check_price_alerts, push_market_summary, push_strategy_radar, sync_market_history
 
 
 def configure_scheduler(application, settings) -> AsyncIOScheduler:
@@ -35,6 +35,16 @@ def configure_scheduler(application, settings) -> AsyncIOScheduler:
             minutes=settings.alerts.check_interval_minutes,
             kwargs={"application": application},
             id="price_alert_check",
+            replace_existing=True,
+        )
+
+    if settings.radar.enabled and settings.radar.schedule_enabled:
+        scheduler.add_job(
+            push_strategy_radar,
+            trigger="interval",
+            minutes=settings.radar.interval_minutes,
+            kwargs={"application": application},
+            id="strategy_radar_push",
             replace_existing=True,
         )
 

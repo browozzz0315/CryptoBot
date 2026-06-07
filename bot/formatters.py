@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from analysis.radar import RadarEntry
+
 
 def format_startup_message(tracked_symbols: list[str], interval_minutes: int) -> str:
     symbols_text = ", ".join(symbol.upper() for symbol in tracked_symbols)
@@ -123,9 +125,79 @@ def format_subscription_message(symbols: list[str]) -> str:
     return "🔖 已訂閱幣種\n" + "\n".join(f"- {symbol.upper()}" for symbol in symbols)
 
 
+def format_radar_message(
+    *,
+    timestamp: datetime,
+    heat_entries: list[RadarEntry],
+    long_entries: list[RadarEntry],
+    composite_entries: list[tuple[RadarEntry, int]],
+    ambush_entries: list[tuple[RadarEntry, int]],
+    highlights: list[str],
+) -> str:
+    lines = [f"🏦 策略雷達推播", f"⏰ {timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}", ""]
+    lines.append("🔥 熱度榜")
+    lines.extend(_format_heat_entries(heat_entries))
+    lines.append("")
+    lines.append("🔥 追多")
+    lines.extend(_format_long_entries(long_entries))
+    lines.append("")
+    lines.append("📊 綜合")
+    lines.extend(_format_scored_entries(composite_entries))
+    lines.append("")
+    lines.append("🎯 埋伏")
+    lines.extend(_format_scored_entries(ambush_entries))
+    lines.append("")
+    lines.append("💡 值得關注")
+    if highlights:
+        lines.extend(f"  {line}" for line in highlights)
+    else:
+        lines.append("  目前沒有明確的額外關注摘要。")
+    return "\n".join(lines)
+
+
 def _format_optional_number(value: float | None | str) -> str:
     if value is None:
         return "N/A"
     if isinstance(value, str):
         return value
     return f"{value:.4f}"
+
+
+def _format_heat_entries(entries: list[RadarEntry]) -> list[str]:
+    if not entries:
+        return ["  無資料"]
+    lines: list[str] = []
+    for entry in entries:
+        tags = []
+        if entry.trending:
+            tags.append("🌐CG熱搜")
+        if entry.oi_change_pct is not None:
+            tags.append(f"⚡OI{entry.oi_change_pct:+.0f}%")
+        if entry.sideways_days > 0:
+            tags.append(f"💤{entry.sideways_days}天")
+        lines.append(
+            f"  {entry.symbol:<8} ~${entry.market_cap/1_000_000:,.0f}M 漲{entry.change_24h:+.0f}% | {' '.join(tags)}"
+        )
+    return lines
+
+
+def _format_long_entries(entries: list[RadarEntry]) -> list[str]:
+    if not entries:
+        return ["  無資料"]
+    return [
+        f"  {entry.symbol:<8} 費率{'N/A' if entry.funding_rate is None else f'{entry.funding_rate:+.3f}%'} | 漲{entry.change_24h:+.0f}% | ~${entry.market_cap/1_000_000:,.0f}M"
+        for entry in entries
+    ]
+
+
+def _format_scored_entries(entries: list[tuple[RadarEntry, int]]) -> list[str]:
+    if not entries:
+        return ["  無資料"]
+    lines: list[str] = []
+    for entry, score in entries:
+        oi_text = "N/A" if entry.oi_change_pct is None else f"{entry.oi_change_pct:+.0f}%"
+        funding_text = "N/A" if entry.funding_rate is None else f"{entry.funding_rate:+.3f}%"
+        lines.append(
+            f"  {entry.symbol:<8} {score}分 | 🧊{funding_text} 💎${entry.market_cap/1_000_000:,.0f}M 💤{entry.sideways_days}天 ⚡OI{oi_text}"
+        )
+    return lines

@@ -31,9 +31,7 @@ async def push_market_summary(application: Application) -> None:
     user_subscription_repository = application.bot_data["user_subscription_repository"]
 
     chat_id = settings.push.chat_id
-    symbols = settings.market.tracked_symbols
-    quotes = await coingecko_client.get_prices(symbols)
-    message = format_market_summary(quotes, datetime.now())
+    subscriptions = await _load_subscription_map(user_subscription_repository)
     sentiment_message = None
 
     try:
@@ -45,24 +43,34 @@ async def push_market_summary(application: Application) -> None:
         message = f"{message}\n\n{sentiment_message}"
 
     if chat_id:
+        summary_symbols = _resolve_summary_symbols(
+            default_symbols=settings.market.tracked_symbols,
+            subscribed_symbols=subscriptions.get(str(chat_id), []),
+            coingecko_client=coingecko_client,
+            context_label=f"default summary chat {chat_id}",
+        )
+        quotes = await coingecko_client.get_prices(summary_symbols)
+        message = format_market_summary(quotes, datetime.now())
+        if sentiment_message:
+            message = f"{message}\n\n{sentiment_message}"
         await application.bot.send_message(chat_id=chat_id, text=message)
     else:
         logger.warning("Default scheduled push skipped because chat_id is not configured.")
 
     # Send user-specific summaries based on their subscriptions.
     delivered_chat_ids = {str(chat_id)} if chat_id else set()
-    subscriptions = await _load_subscription_map(user_subscription_repository)
     for subscribed_chat_id, subscribed_symbols in subscriptions.items():
         if subscribed_chat_id in delivered_chat_ids:
             continue
-        supported_symbols = _filter_supported_symbols(
+        summary_symbols = _resolve_summary_symbols(
+            default_symbols=[],
+            subscribed_symbols=subscribed_symbols,
             coingecko_client=coingecko_client,
-            symbols=subscribed_symbols,
             context_label=f"scheduled summary chat {subscribed_chat_id}",
         )
-        if not supported_symbols:
+        if not summary_symbols:
             continue
-        subscription_quotes = await coingecko_client.get_prices(supported_symbols)
+        subscription_quotes = await coingecko_client.get_prices(summary_symbols)
         subscription_message = format_market_summary(subscription_quotes, datetime.now())
         if sentiment_message:
             subscription_message = f"{subscription_message}\n\n{sentiment_message}"
@@ -300,6 +308,41 @@ async def check_subscription_events(application: Application) -> None:
             )
 
 
+async def send_no_event_summary(application: Application) -> None:
+    settings = application.bot_data["settings"]
+    if not settings.subscription_events.enabled or not settings.subscription_events.no_event_summary_enabled:
+        return
+
+    user_subscription_repository = application.bot_data["user_subscription_repository"]
+    subscription_event_state_repository = application.bot_data["subscription_event_state_repository"]
+    subscriptions = await _load_subscription_map(user_subscription_repository)
+    if not subscriptions:
+        return
+
+    now = datetime.now(tz=UTC)
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    for chat_id, symbols in subscriptions.items():
+        if not symbols:
+            continue
+
+        has_event = await subscription_event_state_repository.has_event_since(
+            chat_id=chat_id,
+            symbols=symbols,
+            since=start_of_day,
+        )
+        if has_event:
+            continue
+
+        await application.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                f"📭 今日事件摘要 {now.astimezone().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                "你目前訂閱的幣種截至目前沒有觸發特殊事件。"
+            ),
+        )
+
+
 async def _load_subscription_map(user_subscription_repository) -> dict[str, list[str]]:
     subscriptions = await user_subscription_repository.list_all_subscriptions()
     grouped: dict[str, list[str]] = {}
@@ -316,6 +359,28 @@ def _filter_supported_symbols(*, coingecko_client, symbols: list[str], context_l
             continue
         logger.warning("Skipping unsupported symbol {} during {}", symbol, context_label)
     return supported_symbols
+
+
+def _resolve_summary_symbols(
+    *,
+    default_symbols: list[str],
+    subscribed_symbols: list[str],
+    coingecko_client,
+    context_label: str,
+) -> list[str]:
+    merged_symbols: list[str] = []
+    seen: set[str] = set()
+    for symbol in [*default_symbols, *subscribed_symbols]:
+        normalized = symbol.upper()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        merged_symbols.append(normalized)
+    return _filter_supported_symbols(
+        coingecko_client=coingecko_client,
+        symbols=merged_symbols,
+        context_label=context_label,
+    )
 
 
 async def push_strategy_radar(application: Application, *, deliver: bool = True) -> str:

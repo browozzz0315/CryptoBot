@@ -45,13 +45,15 @@ SYMBOL_ALIASES = {
 class CoinGeckoClient:
     base_url: str
     api_key: str | None
+    api_plan: str = "demo"
     quote_currency: str = "usd"
     _client: httpx.AsyncClient = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         headers = {}
         if self.api_key:
-            headers["x-cg-demo-api-key"] = self.api_key
+            header_name = "x-cg-pro-api-key" if self.api_plan == "pro" else "x-cg-demo-api-key"
+            headers[header_name] = self.api_key
 
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
@@ -123,6 +125,20 @@ class CoinGeckoClient:
             if symbol:
                 symbols.append(symbol)
         return symbols
+
+    @retry_on_request_error
+    async def search_symbol(self, query: str) -> list[dict[str, str]]:
+        response = await self._client.get("/search", params={"query": query})
+        response.raise_for_status()
+        payload = response.json()
+        return [
+            {
+                "id": str(item.get("id", "")),
+                "symbol": str(item.get("symbol", "")).upper(),
+                "name": str(item.get("name", "")),
+            }
+            for item in payload.get("coins", [])
+        ]
 
     @retry_on_request_error
     async def get_ohlc(self, symbol: str, days: int) -> list[dict[str, float | str | datetime]]:

@@ -27,6 +27,9 @@ class PushConfig:
     enabled: bool
     interval_minutes: int
     chat_id: str | None
+    schedule_mode: str
+    cron_hours: list[int]
+    cron_minute: int
 
 
 @dataclass(slots=True)
@@ -67,6 +70,9 @@ class RadarConfig:
     enabled: bool
     schedule_enabled: bool
     interval_minutes: int
+    schedule_mode: str
+    cron_hours: list[int]
+    cron_minute: int
     symbols: list[str]
     heat_top_n: int
     long_top_n: int
@@ -81,6 +87,9 @@ class SubscriptionEventsConfig:
     enabled: bool
     check_interval_minutes: int
     cooldown_minutes: int
+    no_event_summary_enabled: bool
+    no_event_summary_hours: list[int]
+    no_event_summary_minute: int
     history_limit: int
     price_change_threshold_pct: float
     rsi_overbought: float
@@ -93,6 +102,7 @@ class SubscriptionEventsConfig:
 @dataclass(slots=True)
 class CoinGeckoConfig:
     base_url: str
+    api_plan: str
 
 
 @dataclass(slots=True)
@@ -116,6 +126,7 @@ class ApiConfig:
 class Settings:
     telegram_bot_token: str
     coingecko_api_key: str | None
+    coingecko_api_plan: str
     app: AppConfig
     market: MarketConfig
     push: PushConfig
@@ -148,6 +159,12 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
     return Settings(
         telegram_bot_token=telegram_bot_token,
         coingecko_api_key=os.getenv("COINGECKO_API_KEY") or None,
+        coingecko_api_plan=str(
+            os.getenv(
+                "COINGECKO_API_PLAN",
+                raw_config["api"]["coingecko"].get("plan", "demo"),
+            )
+        ).lower(),
         app=AppConfig(
             timezone=raw_config["app"]["timezone"],
             log_level=os.getenv("LOG_LEVEL", raw_config["app"]["log_level"]),
@@ -161,6 +178,9 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             enabled=bool(raw_config["push"]["enabled"]),
             interval_minutes=int(raw_config["push"]["interval_minutes"]),
             chat_id=str(push_chat_id) if push_chat_id else None,
+            schedule_mode=str(raw_config["push"].get("schedule_mode", "interval")).lower(),
+            cron_hours=[int(hour) for hour in raw_config["push"].get("cron_hours", [])],
+            cron_minute=int(raw_config["push"].get("cron_minute", 0)),
         ),
         storage=StorageConfig(
             database_url=os.getenv(
@@ -192,6 +212,9 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             enabled=bool(raw_config["radar"]["enabled"]),
             schedule_enabled=bool(raw_config["radar"]["schedule_enabled"]),
             interval_minutes=int(raw_config["radar"]["interval_minutes"]),
+            schedule_mode=str(raw_config["radar"].get("schedule_mode", "interval")).lower(),
+            cron_hours=[int(hour) for hour in raw_config["radar"].get("cron_hours", [])],
+            cron_minute=int(raw_config["radar"].get("cron_minute", 0)),
             symbols=raw_config["radar"]["symbols"],
             heat_top_n=int(raw_config["radar"]["heat_top_n"]),
             long_top_n=int(raw_config["radar"]["long_top_n"]),
@@ -204,6 +227,9 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             enabled=bool(raw_config["subscription_events"]["enabled"]),
             check_interval_minutes=int(raw_config["subscription_events"]["check_interval_minutes"]),
             cooldown_minutes=int(raw_config["subscription_events"]["cooldown_minutes"]),
+            no_event_summary_enabled=bool(raw_config["subscription_events"].get("no_event_summary_enabled", False)),
+            no_event_summary_hours=[int(hour) for hour in raw_config["subscription_events"].get("no_event_summary_hours", [])],
+            no_event_summary_minute=int(raw_config["subscription_events"].get("no_event_summary_minute", 0)),
             history_limit=int(raw_config["subscription_events"]["history_limit"]),
             price_change_threshold_pct=float(raw_config["subscription_events"]["price_change_threshold_pct"]),
             rsi_overbought=float(raw_config["subscription_events"]["rsi_overbought"]),
@@ -215,6 +241,7 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
         api=ApiConfig(
             coingecko=CoinGeckoConfig(
                 base_url=raw_config["api"]["coingecko"]["base_url"],
+                api_plan=str(raw_config["api"]["coingecko"].get("plan", "demo")).lower(),
             ),
             fear_greed=FearGreedConfig(
                 base_url=raw_config["api"]["fear_greed"]["base_url"],

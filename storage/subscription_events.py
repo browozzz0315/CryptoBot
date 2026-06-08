@@ -81,6 +81,40 @@ class SubscriptionEventStateRepository:
             await session.execute(statement)
             await session.commit()
 
+    async def has_event_since(
+        self,
+        *,
+        chat_id: str,
+        symbols: list[str],
+        since: datetime,
+    ) -> bool:
+        if not symbols:
+            return False
+
+        query = (
+            select(SubscriptionEventState.id)
+            .where(SubscriptionEventState.chat_id == chat_id)
+            .where(SubscriptionEventState.symbol.in_([symbol.upper() for symbol in symbols]))
+            .where(SubscriptionEventState.last_triggered_at.is_not(None))
+        )
+        async with self._session_factory() as session:
+            result = await session.execute(query)
+            ids = list(result.scalars().all())
+            if not ids:
+                return False
+
+            states_query = (
+                select(SubscriptionEventState)
+                .where(SubscriptionEventState.id.in_(ids))
+            )
+            states_result = await session.execute(states_query)
+            states = list(states_result.scalars().all())
+            return any(
+                self._ensure_utc_datetime(state.last_triggered_at) >= since
+                for state in states
+                if state.last_triggered_at is not None
+            )
+
     def _ensure_utc_datetime(self, value: datetime) -> datetime:
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)

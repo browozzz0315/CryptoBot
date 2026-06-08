@@ -12,6 +12,9 @@ market:
 push:
   enabled: true
   interval_minutes: 60
+  schedule_mode: interval
+  cron_hours: []
+  cron_minute: 0
   chat_id: null
 
 storage:
@@ -55,6 +58,9 @@ radar:
   enabled: true
   schedule_enabled: true
   interval_minutes: 180
+  schedule_mode: cron
+  cron_hours: [9, 13, 19]
+  cron_minute: 0
   symbols:
     - BTC
     - ETH
@@ -81,6 +87,9 @@ subscription_events:
   enabled: true
   check_interval_minutes: 3
   cooldown_minutes: 180
+  no_event_summary_enabled: true
+  no_event_summary_hours: [9, 18]
+  no_event_summary_minute: 5
   history_limit: 80
   price_change_threshold_pct: 8.0
   rsi_overbought: 70.0
@@ -92,6 +101,7 @@ subscription_events:
 api:
   coingecko:
     base_url: https://api.coingecko.com/api/v3
+    plan: demo
   fear_greed:
     base_url: https://api.alternative.me
   binance_futures:

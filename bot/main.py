@@ -92,6 +92,11 @@ async def post_shutdown(application: Application) -> None:
 def build_application() -> Application:
     settings = load_settings()
     setup_logger(settings.app.log_level)
+    coingecko_base_url = (
+        "https://pro-api.coingecko.com/api/v3"
+        if settings.coingecko_api_plan == "pro"
+        else settings.api.coingecko.base_url
+    )
 
     application = (
         Application.builder()
@@ -120,8 +125,9 @@ def build_application() -> Application:
         application.bot_data["db_session_factory"]
     )
     application.bot_data["coingecko_client"] = CoinGeckoClient(
-        base_url=settings.api.coingecko.base_url,
+        base_url=coingecko_base_url,
         api_key=settings.coingecko_api_key,
+        api_plan=settings.coingecko_api_plan,
         quote_currency=settings.market.quote_currency,
     )
     application.bot_data["binance_futures_client"] = BinanceFuturesClient(

@@ -400,6 +400,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # 3. 建立 .env 檔案
 TELEGRAM_BOT_TOKEN=your_token_here
 COINGECKO_API_KEY=           # 免費版可留空
+COINGECKO_API_PLAN=demo      # demo 或 pro，若為 Pro key 請改成 pro
 BINANCE_API_KEY=             # Phase 4 才需要
 BINANCE_SECRET_KEY=          # Phase 4 才需要
 ```
@@ -454,6 +455,10 @@ aiosqlite==0.21.0
 - 已支援 `subscription_events` 設定區塊，可調整檢查頻率、cooldown 與事件閾值
 - `/subscribe` 現在會先驗證是否為支援幣種，避免寫入無法查價的無效訂閱
 - `WARNING` / `ERROR` 日誌會額外寫入 `runtime/logs/warnings-errors.log`，供後續除錯追蹤
+- 若預設推播 chat 同時有使用 `/subscribe`，市場快報會自動合併預設幣種與訂閱幣種
+- 已支援 CoinGecko `demo / pro` 計畫切換，Pro 會改用 `pro-api.coingecko.com` 與對應 header
+- 已支援 `push` / `radar` 的 `interval / cron` 雙模式排程
+- 已支援上午 / 傍晚的「今日無特殊事件」摘要排程
 
 ### 推播訊息格式範例
 

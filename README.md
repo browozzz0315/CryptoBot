@@ -10,7 +10,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 - `/subscribe`、`/unsubscribe`、`/subscriptions` 訂閱制指令
 - `/chart <symbol>` 圖表輸出指令
 - `/radar` 策略雷達推播摘要指令
-- 使用 CoinGecko 免費 keyless API 查詢更完整的市場快照
+- 使用 CoinGecko Demo / Pro API 查詢更完整的市場快照
 - 使用 Binance Futures 公開市場資料取得 Funding / OI / Long-Short Ratio
 - 整合 Alternative.me Fear & Greed 市場情緒指數
 - 啟動通知與立即市場快報推播
@@ -42,6 +42,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 - 價格警報會儲存在 SQLite，並由排程定期檢查
 - 多幣種篩選器會根據設定好的 screener 幣種清單產生排行
 - 使用者訂閱資料會儲存在 SQLite，並影響定時摘要推播內容
+- 若預設推播 chat 同時有使用 `/subscribe`，市場快報會自動合併預設幣種與訂閱幣種
 - 圖表功能會輸出本地 PNG 檔，再由 Telegram 送出
 - 歷史資料同步由 `config.yaml` 中的 `history` 區塊控制
 
@@ -86,6 +87,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 - 目前事件包含：24h 急漲急跌、RSI 過熱/過冷、MACD 黃金/死亡交叉、OI 暗流、Funding 偏負
 - 相同事件會套用 cooldown，避免短時間重複洗版
 - 相關閾值與檢查頻率可在 `config.yaml` 的 `subscription_events` 區塊調整
+- 若當日截至上午或傍晚都沒有任何事件，可額外推送「今日無特殊事件」摘要
 
 ## 雷達指令
 
@@ -94,8 +96,10 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 ## 注意事項
 
 - 若要使用排程推播，必須設定 `TELEGRAM_DEFAULT_CHAT_ID` 或 `push.chat_id`
+- CoinGecko 若使用付費 Pro key，請在 `.env` 設定 `COINGECKO_API_PLAN=pro`
 - Scheduler 會隨 bot 進程一起啟動
 - 啟動時 bot 會先送出上線通知與一則立即市場快報，之後才依照固定週期排程
+- 目前雷達可設定固定時段推播，例如早 / 中 / 晚三個時段，且仍可手動使用 `/radar`
 - SQLite 執行期資料會存放在 `runtime/`，且已被 git 忽略
 - `WARNING` 與 `ERROR` 等級日誌會額外寫入 `runtime/logs/warnings-errors.log`
 - 觸發過的警報為一次性警報，送出後會自動停用

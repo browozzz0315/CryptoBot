@@ -40,7 +40,6 @@ async def push_market_summary(application: Application) -> None:
         logger.exception("Failed to fetch Fear & Greed index for scheduled push")
     else:
         sentiment_message = f"😱 Fear & Greed：{sentiment['value']}（{sentiment['classification']}）"
-        message = f"{message}\n\n{sentiment_message}"
 
     if chat_id:
         summary_symbols = _resolve_summary_symbols(

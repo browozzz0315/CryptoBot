@@ -186,6 +186,7 @@ async def check_subscription_events(application: Application) -> None:
     quote_cache: dict[str, dict[str, float | str | datetime]] = {}
     close_price_cache: dict[str, list[float]] = {}
     derivatives_cache: dict[str, tuple[float | None, float | None]] = {}
+    short_term_change_cache: dict[str, float | None] = {}
 
     for symbol in unique_symbols:
         try:
@@ -226,9 +227,14 @@ async def check_subscription_events(application: Application) -> None:
                     limit=settings.subscription_events.history_limit,
                 )
             close_price_cache[symbol] = close_prices
+            short_term_change_cache[symbol] = _calculate_short_term_change_pct(
+                close_prices,
+                lookback_candles=settings.subscription_events.short_term_lookback_candles,
+            )
         except Exception:  # noqa: BLE001
             logger.exception("Failed to load close prices for subscription event check: {}", symbol)
             close_price_cache[symbol] = []
+            short_term_change_cache[symbol] = None
 
         funding_rate = None
         oi_change_pct = None
@@ -259,9 +265,11 @@ async def check_subscription_events(application: Application) -> None:
                 symbol=symbol,
                 close_prices=close_prices,
                 change_24h=float(quote["change_24h"]),
+                short_term_change_pct=short_term_change_cache.get(symbol),
                 funding_rate=funding_rate,
                 oi_change_pct=oi_change_pct,
                 price_change_threshold_pct=settings.subscription_events.price_change_threshold_pct,
+                short_term_breakout_threshold_pct=settings.subscription_events.short_term_breakout_threshold_pct,
                 rsi_overbought=settings.subscription_events.rsi_overbought,
                 rsi_oversold=settings.subscription_events.rsi_oversold,
                 oi_surge_threshold_pct=settings.subscription_events.oi_surge_threshold_pct,
@@ -380,6 +388,17 @@ def _resolve_summary_symbols(
         symbols=merged_symbols,
         context_label=context_label,
     )
+
+
+def _calculate_short_term_change_pct(close_prices: list[float], *, lookback_candles: int) -> float | None:
+    if len(close_prices) <= lookback_candles:
+        return None
+
+    previous = close_prices[-(lookback_candles + 1)]
+    latest = close_prices[-1]
+    if previous == 0:
+        return None
+    return ((latest - previous) / previous) * 100
 
 
 async def push_strategy_radar(application: Application, *, deliver: bool = True) -> str:

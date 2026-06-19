@@ -11,7 +11,7 @@ market:
 
 push:
   enabled: true
-  interval_minutes: 60
+  interval_minutes: 180
   schedule_mode: interval
   cron_hours: []
   cron_minute: 0
@@ -59,7 +59,7 @@ radar:
   schedule_enabled: true
   interval_minutes: 180
   schedule_mode: cron
-  cron_hours: [9, 13, 19]
+  cron_hours: [6, 14, 22]
   cron_minute: 0
   symbols:
     - BTC
@@ -91,12 +91,14 @@ subscription_events:
   no_event_summary_hours: [9, 18]
   no_event_summary_minute: 5
   history_limit: 80
-  price_change_threshold_pct: 8.0
+  price_change_threshold_pct: 5.0
+  short_term_breakout_threshold_pct: 2.5
+  short_term_lookback_candles: 4
   rsi_overbought: 70.0
   rsi_oversold: 30.0
-  oi_surge_threshold_pct: 12.0
+  oi_surge_threshold_pct: 8.0
   price_flat_threshold_pct: 2.5
-  funding_negative_threshold_pct: -0.03
+  funding_negative_threshold_pct: -0.015
 
 api:
   coingecko:

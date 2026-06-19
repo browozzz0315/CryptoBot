@@ -49,9 +49,11 @@ def detect_subscription_events(
     symbol: str,
     close_prices: list[float],
     change_24h: float,
+    short_term_change_pct: float | None,
     funding_rate: float | None,
     oi_change_pct: float | None,
     price_change_threshold_pct: float,
+    short_term_breakout_threshold_pct: float,
     rsi_overbought: float,
     rsi_oversold: float,
     oi_surge_threshold_pct: float,
@@ -77,6 +79,25 @@ def detect_subscription_events(
                 title=f"{symbol} 快速下跌",
                 summary=f"24h 跌幅 {change_24h:+.2f}%，已超過 {price_change_threshold_pct:.2f}% 閾值。",
                 value=change_24h,
+            )
+        )
+
+    if short_term_change_pct is not None and short_term_change_pct >= short_term_breakout_threshold_pct:
+        events.append(
+            SubscriptionEvent(
+                event_key="short_term_breakout_up",
+                title=f"{symbol} 短線突破",
+                summary=f"近幾根 K 線漲幅 {short_term_change_pct:+.2f}%，已超過 {short_term_breakout_threshold_pct:.2f}% 閾值。",
+                value=short_term_change_pct,
+            )
+        )
+    elif short_term_change_pct is not None and short_term_change_pct <= -short_term_breakout_threshold_pct:
+        events.append(
+            SubscriptionEvent(
+                event_key="short_term_breakout_down",
+                title=f"{symbol} 短線跌破",
+                summary=f"近幾根 K 線跌幅 {short_term_change_pct:+.2f}%，已超過 {short_term_breakout_threshold_pct:.2f}% 閾值。",
+                value=short_term_change_pct,
             )
         )
 

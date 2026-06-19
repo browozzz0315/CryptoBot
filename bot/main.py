@@ -3,7 +3,8 @@ from __future__ import annotations
 from time import perf_counter
 
 from loguru import logger
-from telegram.ext import Application, CommandHandler
+from telegram.error import Conflict
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 from bot.formatters import format_startup_message
 from bot.handlers.commands import (
@@ -35,6 +36,7 @@ from storage.subscription_events import SubscriptionEventStateRepository
 from storage.users import UserSubscriptionRepository
 from utils.config_loader import load_settings
 from utils.logger import setup_logger
+from utils.single_instance import AlreadyRunningError, SingleInstanceLock
 
 
 async def post_init(application: Application) -> None:
@@ -87,6 +89,25 @@ async def post_shutdown(application: Application) -> None:
     db_engine = application.bot_data.get("db_engine")
     if db_engine:
         await db_engine.dispose()
+
+    single_instance_lock = application.bot_data.get("single_instance_lock")
+    if single_instance_lock:
+        single_instance_lock.release()
+
+
+async def telegram_error_handler(
+    update: object,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    if isinstance(context.error, Conflict):
+        logger.error(
+            "Telegram polling conflict detected. "
+            "Only one bot instance can call getUpdates for the same token. "
+            "Stop the other local process, GitHub Action, server, or webhook/polling instance."
+        )
+        return
+
+    logger.opt(exception=context.error).error("Unhandled Telegram bot error. update={}", update)
 
 
 def build_application() -> Application:
@@ -152,12 +173,24 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("subscriptions", subscriptions_command))
     application.add_handler(CommandHandler("chart", chart_command))
     application.add_handler(CommandHandler("radar", radar_command))
+    application.add_error_handler(telegram_error_handler)
     return application
 
 
 def main() -> None:
-    application = build_application()
-    application.run_polling(allowed_updates=None)
+    single_instance_lock = SingleInstanceLock("runtime/cryptobot.lock")
+    try:
+        single_instance_lock.acquire()
+    except AlreadyRunningError as exc:
+        print(str(exc))
+        raise SystemExit(1) from exc
+
+    try:
+        application = build_application()
+        application.bot_data["single_instance_lock"] = single_instance_lock
+        application.run_polling(allowed_updates=None)
+    finally:
+        single_instance_lock.release()
 
 
 if __name__ == "__main__":

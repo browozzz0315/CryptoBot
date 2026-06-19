@@ -92,6 +92,8 @@ class SubscriptionEventsConfig:
     no_event_summary_minute: int
     history_limit: int
     price_change_threshold_pct: float
+    short_term_breakout_threshold_pct: float
+    short_term_lookback_candles: int
     rsi_overbought: float
     rsi_oversold: float
     oi_surge_threshold_pct: float
@@ -155,16 +157,19 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
         raise ValueError("缺少 TELEGRAM_BOT_TOKEN，請先在 .env 設定。")
 
     push_chat_id = os.getenv("TELEGRAM_DEFAULT_CHAT_ID") or raw_config["push"].get("chat_id")
+    coingecko_api_plan = str(
+        os.getenv(
+            "COINGECKO_API_PLAN",
+            raw_config["api"]["coingecko"].get("plan", "demo"),
+        )
+    ).lower()
+    if coingecko_api_plan not in {"demo", "pro"}:
+        raise ValueError("COINGECKO_API_PLAN 僅支援 demo 或 pro。")
 
     return Settings(
         telegram_bot_token=telegram_bot_token,
         coingecko_api_key=os.getenv("COINGECKO_API_KEY") or None,
-        coingecko_api_plan=str(
-            os.getenv(
-                "COINGECKO_API_PLAN",
-                raw_config["api"]["coingecko"].get("plan", "demo"),
-            )
-        ).lower(),
+        coingecko_api_plan=coingecko_api_plan,
         app=AppConfig(
             timezone=raw_config["app"]["timezone"],
             log_level=os.getenv("LOG_LEVEL", raw_config["app"]["log_level"]),
@@ -232,6 +237,8 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             no_event_summary_minute=int(raw_config["subscription_events"].get("no_event_summary_minute", 0)),
             history_limit=int(raw_config["subscription_events"]["history_limit"]),
             price_change_threshold_pct=float(raw_config["subscription_events"]["price_change_threshold_pct"]),
+            short_term_breakout_threshold_pct=float(raw_config["subscription_events"].get("short_term_breakout_threshold_pct", 2.5)),
+            short_term_lookback_candles=int(raw_config["subscription_events"].get("short_term_lookback_candles", 4)),
             rsi_overbought=float(raw_config["subscription_events"]["rsi_overbought"]),
             rsi_oversold=float(raw_config["subscription_events"]["rsi_oversold"]),
             oi_surge_threshold_pct=float(raw_config["subscription_events"]["oi_surge_threshold_pct"]),

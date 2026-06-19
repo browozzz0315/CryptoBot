@@ -105,3 +105,18 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 - 觸發過的警報為一次性警報，送出後會自動停用
 - Matplotlib 設定快取會寫入 `runtime/mplconfig`，避免系統權限問題
 - 策略雷達目前屬於規則引擎 MVP，分數與文字摘要可於後續再調參數
+
+## 短線事件設定
+
+- `subscription_events.price_change_threshold_pct` 控制 24h 急漲急跌事件
+- `subscription_events.short_term_breakout_threshold_pct` 控制近幾根 K 線的短線突破 / 跌破事件
+- `subscription_events.short_term_lookback_candles` 控制短線事件回看幾根 4h K 線
+- `subscription_events.oi_surge_threshold_pct` 控制 OI 暗流事件門檻
+- `subscription_events.funding_negative_threshold_pct` 控制 Funding 偏負事件門檻
+
+## 疑難排解
+
+- 若出現 Telegram `Conflict: terminated by other getUpdates request`，代表同一組 bot token 正在被另一個 polling 實例使用，請關閉其他本機程序、伺服器程序或 GitHub Actions job 後再啟動。
+- 本專案啟動時會使用 `runtime/cryptobot.lock` 防止同一台機器重複啟動；若仍出現 Conflict，通常是另一台機器或雲端環境也在跑同一個 bot。
+- CoinGecko 若使用 Demo key，請設定 `COINGECKO_API_PLAN=demo`；若使用 Pro key，請設定 `COINGECKO_API_PLAN=pro`，程式會自動切換 header 與 Pro base URL。
+- CoinGecko 錯誤日誌只會記錄 symbol、coin id、plan、base URL 與狀態碼，不會輸出 API key。

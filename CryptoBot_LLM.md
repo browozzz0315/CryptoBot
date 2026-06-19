@@ -566,3 +566,27 @@ aiosqlite==0.21.0
 
 請先說明實作思路，再給出完整程式碼。
 ```
+
+---
+
+## 2026-06-17 實作記錄：Telegram Conflict 與 CoinGecko 診斷
+
+### 問題
+
+- Telegram `Conflict: terminated by other getUpdates request` 代表同一組 bot token 同時被多個 polling 實例使用。
+- `warnings-errors.log` 曾出現 CoinGecko 價格查詢回傳空資料，導致訂閱事件檢查略過 BTC / ETH / SOL 等幣種。
+- 事件通知門檻已調整為更容易捕捉短線突破，但需要測試保護避免函式簽名變更造成回歸。
+
+### 決策
+
+- 新增 `runtime/cryptobot.lock` 單一實例鎖，避免同一台機器重複啟動 bot。
+- 新增 Telegram error handler，遇到 `Conflict` 時輸出明確處理方向，不再只顯示未註冊 error handler。
+- CoinGecko client 增加安全診斷資訊：symbol、coin id、API plan、base URL、status code、payload type；不得輸出 API key。
+- `COINGECKO_API_PLAN` 僅接受 `demo` 或 `pro`，避免 `.env` 拼錯導致 header/base URL 不一致。
+- 訂閱事件加入短線突破 / 跌破判斷，使用近 `short_term_lookback_candles` 根 4h K 線計算變化。
+
+### 後續優先項目
+
+- `/status` 或 `/diag`：顯示資料源健康狀態、排程狀態、最後一次事件檢查時間與最近錯誤。
+- `/events`：顯示目前事件門檻、最近觸發紀錄與 cooldown 狀態。
+- 若要支援 HYPE、NEAR 等更多幣種，應加入 CoinGecko `/search` 或幣種清單快取，不要只靠手寫 mapping。

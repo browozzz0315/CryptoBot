@@ -48,9 +48,11 @@ def test_detect_subscription_events_generates_multiple_events() -> None:
         symbol="BTC",
         close_prices=close_prices,
         change_24h=9.5,
+        short_term_change_pct=None,
         funding_rate=-0.05,
         oi_change_pct=18.0,
         price_change_threshold_pct=8.0,
+        short_term_breakout_threshold_pct=2.5,
         rsi_overbought=70.0,
         rsi_oversold=30.0,
         oi_surge_threshold_pct=12.0,
@@ -68,9 +70,11 @@ def test_detect_subscription_events_detects_oversold() -> None:
         symbol="ETH",
         close_prices=close_prices,
         change_24h=-3.0,
+        short_term_change_pct=None,
         funding_rate=None,
         oi_change_pct=None,
         price_change_threshold_pct=8.0,
+        short_term_breakout_threshold_pct=2.5,
         rsi_overbought=70.0,
         rsi_oversold=30.0,
         oi_surge_threshold_pct=12.0,
@@ -79,3 +83,24 @@ def test_detect_subscription_events_detects_oversold() -> None:
     )
     event_keys = {event.event_key for event in events}
     assert "rsi_oversold" in event_keys
+
+
+def test_detect_subscription_events_detects_short_term_breakout() -> None:
+    events = detect_subscription_events(
+        symbol="SOL",
+        close_prices=[100.0] * 40,
+        change_24h=1.0,
+        short_term_change_pct=3.2,
+        funding_rate=None,
+        oi_change_pct=None,
+        price_change_threshold_pct=5.0,
+        short_term_breakout_threshold_pct=2.5,
+        rsi_overbought=70.0,
+        rsi_oversold=30.0,
+        oi_surge_threshold_pct=8.0,
+        price_flat_threshold_pct=2.5,
+        funding_negative_threshold_pct=-0.015,
+    )
+
+    event_keys = {event.event_key for event in events}
+    assert "short_term_breakout_up" in event_keys

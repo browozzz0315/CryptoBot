@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 import httpx
+from loguru import logger
 
 from data.base import retry_on_request_error
 
@@ -50,6 +51,10 @@ class CoinGeckoClient:
     _client: httpx.AsyncClient = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self.api_plan = self.api_plan.lower()
+        if self.api_plan not in {"demo", "pro"}:
+            raise ValueError("COINGECKO_API_PLAN must be either 'demo' or 'pro'.")
+
         headers = {}
         if self.api_key:
             header_name = "x-cg-pro-api-key" if self.api_plan == "pro" else "x-cg-demo-api-key"
@@ -79,13 +84,37 @@ class CoinGeckoClient:
         response.raise_for_status()
         payload = response.json()
 
+        if isinstance(payload, dict):
+            self._raise_payload_error(
+                symbol=normalized_symbol,
+                coin_id=coin_id,
+                status_code=response.status_code,
+                payload=payload,
+            )
+
+        if not isinstance(payload, list):
+            raise ValueError(
+                "CoinGecko returned an unexpected markets payload. "
+                f"symbol={normalized_symbol}, coin_id={coin_id}, plan={self.api_plan}, "
+                f"base_url={self.base_url}, status_code={response.status_code}, "
+                f"payload_type={type(payload).__name__}"
+            )
+
         if not payload:
-            raise ValueError(f"CoinGecko 找不到幣種：{normalized_symbol}")
+            raise ValueError(
+                "CoinGecko returned an empty markets payload. "
+                f"symbol={normalized_symbol}, coin_id={coin_id}, plan={self.api_plan}, "
+                f"base_url={self.base_url}, status_code={response.status_code}"
+            )
 
         coin_data = payload[0]
         price = coin_data.get("current_price")
         if price is None:
-            raise ValueError(f"CoinGecko 回傳資料缺少價格欄位：{normalized_symbol}")
+            raise ValueError(
+                "CoinGecko markets payload is missing current_price. "
+                f"symbol={normalized_symbol}, coin_id={coin_id}, plan={self.api_plan}, "
+                f"base_url={self.base_url}"
+            )
 
         last_updated = coin_data.get("last_updated")
         last_updated_at = (
@@ -222,3 +251,38 @@ class CoinGeckoClient:
         if days in (90, 180, 365):
             return ("4d", 4 * 24 * 60 * 60)
         raise ValueError("CoinGecko OHLC days 僅支援 1, 2, 7, 14, 30, 90, 180, 365")
+
+    def _raise_payload_error(
+        self,
+        *,
+        symbol: str,
+        coin_id: str,
+        status_code: int,
+        payload: dict,
+    ) -> None:
+        error_message = payload.get("error") or payload.get("message")
+        status = payload.get("status")
+        if isinstance(status, dict):
+            error_message = (
+                error_message
+                or status.get("error_message")
+                or status.get("message")
+                or status.get("error_code")
+            )
+
+        logger.warning(
+            "CoinGecko returned an error payload. symbol={}, coin_id={}, plan={}, "
+            "base_url={}, status_code={}, payload_keys={}",
+            symbol,
+            coin_id,
+            self.api_plan,
+            self.base_url,
+            status_code,
+            sorted(str(key) for key in payload.keys()),
+        )
+        raise ValueError(
+            "CoinGecko returned an error payload. "
+            f"symbol={symbol}, coin_id={coin_id}, plan={self.api_plan}, "
+            f"base_url={self.base_url}, status_code={status_code}, "
+            f"message={error_message or 'N/A'}"
+        )

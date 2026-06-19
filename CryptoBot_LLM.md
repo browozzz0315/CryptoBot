@@ -590,3 +590,25 @@ aiosqlite==0.21.0
 - `/status` 或 `/diag`：顯示資料源健康狀態、排程狀態、最後一次事件檢查時間與最近錯誤。
 - `/events`：顯示目前事件門檻、最近觸發紀錄與 cooldown 狀態。
 - 若要支援 HYPE、NEAR 等更多幣種，應加入 CoinGecko `/search` 或幣種清單快取，不要只靠手寫 mapping。
+
+---
+
+## 2026-06-19 實作記錄：診斷與事件可視化
+
+### 已完成
+
+- 新增 `/status` 與 `/diag`，可手動檢查 scheduler、排程 job、CoinGecko plan、追蹤幣種、事件訂閱狀態。
+- `/status` 會做輕量資料源檢查：CoinGecko 預設幣種、Fear & Greed、Binance Futures BTC funding。
+- 新增 `/events [symbol]`，可查看事件門檻、訂閱幣種、最近事件觸發紀錄與 cooldown 狀態。
+- 擴充 `SubscriptionEventStateRepository.list_recent_states()`，支援依 chat 與 symbol filter 查詢最近事件。
+
+### 設計決策
+
+- 診斷檢查只在使用者手動呼叫時執行，不放進背景排程，避免增加 API 負載。
+- 目前不新增 diagnostics table；若未來要追蹤每次 job 成功 / 失敗歷史，再獨立設計持久化結構。
+- `/diag` 先作為 `/status` 別名，未來可擴充為更詳細的管理員診斷輸出。
+
+### 下一步候選
+
+- 支援 HYPE、NEAR 等更多幣種：加入 CoinGecko `/search` 或幣種清單快取。
+- 記錄每次排程 job 的最後成功 / 失敗時間，讓 `/status` 顯示更完整的健康狀態。

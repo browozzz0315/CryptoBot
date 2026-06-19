@@ -93,6 +93,13 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 
 - `/radar`
 
+## 診斷與事件查詢
+
+- `/status`：查看 bot、排程與資料源狀態
+- `/diag`：`/status` 的別名
+- `/events`：查看目前 chat 的訂閱事件門檻、最近觸發與 cooldown
+- `/events BTC`：只查看單一幣種的事件狀態
+
 ## 注意事項
 
 - 若要使用排程推播，必須設定 `TELEGRAM_DEFAULT_CHAT_ID` 或 `push.chat_id`
@@ -105,6 +112,7 @@ CryptoBot 是一個加密貨幣監控與 Telegram 推播機器人的 Phase 1-3 �
 - 觸發過的警報為一次性警報，送出後會自動停用
 - Matplotlib 設定快取會寫入 `runtime/mplconfig`，避免系統權限問題
 - 策略雷達目前屬於規則引擎 MVP，分數與文字摘要可於後續再調參數
+- `/status` 只會在手動呼叫時進行資料源檢查，不會額外增加背景 API 負載
 
 ## 短線事件設定
 

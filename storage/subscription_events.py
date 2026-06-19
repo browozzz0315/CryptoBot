@@ -115,6 +115,29 @@ class SubscriptionEventStateRepository:
                 if state.last_triggered_at is not None
             )
 
+    async def list_recent_states(
+        self,
+        *,
+        chat_id: str,
+        symbols: list[str] | None = None,
+        limit: int = 10,
+    ) -> list[SubscriptionEventState]:
+        query = (
+            select(SubscriptionEventState)
+            .where(SubscriptionEventState.chat_id == chat_id)
+            .where(SubscriptionEventState.last_triggered_at.is_not(None))
+            .order_by(SubscriptionEventState.last_triggered_at.desc())
+            .limit(limit)
+        )
+        if symbols:
+            query = query.where(
+                SubscriptionEventState.symbol.in_([symbol.upper() for symbol in symbols])
+            )
+
+        async with self._session_factory() as session:
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
     def _ensure_utc_datetime(self, value: datetime) -> datetime:
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)

@@ -1,8 +1,96 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from analysis.radar import RadarEntry
+
+
+def format_status_message(
+    *,
+    scheduler_running: bool,
+    jobs: list[dict[str, str]],
+    coingecko_plan: str,
+    tracked_symbols: list[str],
+    subscription_events_enabled: bool,
+    data_sources: list[dict[str, str | bool]],
+) -> str:
+    lines = [
+        "🧭 CryptoBot 狀態",
+        "",
+        f"Scheduler：{'運行中' if scheduler_running else '未啟動'}",
+        f"CoinGecko plan：{coingecko_plan}",
+        f"追蹤幣種：{', '.join(symbol.upper() for symbol in tracked_symbols) or '未設定'}",
+        f"事件訂閱：{'啟用' if subscription_events_enabled else '停用'}",
+        "",
+        "資料源檢查：",
+    ]
+
+    for source in data_sources:
+        status = "OK" if bool(source["ok"]) else "FAIL"
+        lines.append(f"- {source['name']}：{status}，{source['detail']}")
+
+    lines.extend(["", "排程："])
+    if not jobs:
+        lines.append("- 無已註冊排程")
+    else:
+        for job in jobs:
+            lines.append(f"- {job['id']}：下一次 {job['next_run_time']}")
+
+    return "\n".join(lines)
+
+
+def format_events_status_message(
+    *,
+    symbols: list[str],
+    filtered_symbol: str | None,
+    thresholds: dict[str, float | int],
+    recent_events: list[dict[str, str | float | datetime | None]],
+    cooldown_minutes: int,
+    now: datetime,
+) -> str:
+    lines = ["📌 訂閱事件狀態", ""]
+    if filtered_symbol:
+        lines.append(f"查詢幣種：{filtered_symbol.upper()}")
+    lines.append(f"訂閱幣種：{', '.join(symbol.upper() for symbol in symbols) or '尚未訂閱'}")
+    lines.extend(
+        [
+            "",
+            "目前門檻：",
+            f"- 24h 急漲急跌：±{float(thresholds['price_change_threshold_pct']):.2f}%",
+            f"- 短線突破 / 跌破：±{float(thresholds['short_term_breakout_threshold_pct']):.2f}%",
+            f"- 短線回看 K 線：{int(thresholds['short_term_lookback_candles'])} 根",
+            f"- OI 暗流：+{float(thresholds['oi_surge_threshold_pct']):.2f}%",
+            f"- Funding 偏負：{float(thresholds['funding_negative_threshold_pct']):+.3f}%",
+            f"- Cooldown：{cooldown_minutes} 分鐘",
+            "",
+            "最近事件：",
+        ]
+    )
+
+    if not recent_events:
+        lines.append("- 尚無事件紀錄")
+        return "\n".join(lines)
+
+    reference_time = _ensure_aware_datetime(now)
+    for event in recent_events:
+        last_triggered_at = event.get("last_triggered_at")
+        triggered_text = "N/A"
+        cooldown_text = "不在 cooldown"
+        if isinstance(last_triggered_at, datetime):
+            triggered_at = _ensure_aware_datetime(last_triggered_at)
+            triggered_text = triggered_at.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            cooldown_until = triggered_at + timedelta(minutes=cooldown_minutes)
+            if reference_time < cooldown_until:
+                cooldown_text = f"cooldown 到 {cooldown_until.astimezone().strftime('%H:%M:%S')}"
+
+        value = event.get("last_event_value")
+        value_text = "N/A" if value is None else f"{float(value):+.3f}"
+        lines.append(
+            f"- {str(event['symbol']).upper()} {event['event_key']}：{value_text}，"
+            f"{triggered_text}，{cooldown_text}"
+        )
+
+    return "\n".join(lines)
 
 
 def format_startup_message(tracked_symbols: list[str], interval_minutes: int) -> str:
@@ -165,6 +253,12 @@ def format_radar_message(
     else:
         lines.append("  目前沒有明確的額外關注摘要。")
     return "\n".join(lines)
+
+
+def _ensure_aware_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
 
 
 def _format_optional_number(value: float | None | str) -> str:

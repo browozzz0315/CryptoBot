@@ -10,6 +10,7 @@ from bot.formatters import format_startup_message
 from bot.handlers.commands import (
     chart_command,
     delete_alert_command,
+    events_command,
     fear_command,
     help_command,
     list_alerts_command,
@@ -19,6 +20,7 @@ from bot.handlers.commands import (
     subscriptions_command,
     set_alert_command,
     start_command,
+    status_command,
     top_gainers_command,
     top_losers_command,
     top_volume_command,
@@ -173,6 +175,9 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("subscriptions", subscriptions_command))
     application.add_handler(CommandHandler("chart", chart_command))
     application.add_handler(CommandHandler("radar", radar_command))
+    application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("diag", status_command))
+    application.add_handler(CommandHandler("events", events_command))
     application.add_error_handler(telegram_error_handler)
     return application
 

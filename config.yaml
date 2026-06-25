@@ -82,23 +82,31 @@ radar:
   ambush_top_n: 8
   sideways_lookback_candles: 30
   sideways_threshold_pct: 12.0
+  dynamic_candidates_enabled: true
+  dynamic_candidate_limit: 40
+  min_volume_usd: 10000000
+  min_market_cap_usd: 5000000
+  max_market_cap_usd: 5000000000
 
 subscription_events:
   enabled: true
   check_interval_minutes: 3
-  cooldown_minutes: 180
+  cooldown_minutes: 360
   no_event_summary_enabled: true
   no_event_summary_hours: [9, 18]
   no_event_summary_minute: 5
   history_limit: 80
-  price_change_threshold_pct: 5.0
-  short_term_breakout_threshold_pct: 2.5
+  min_push_severity: high
+  min_confirmations: 2
+  medium_summary_enabled: true
+  price_change_threshold_pct: 8.0
+  short_term_breakout_threshold_pct: 4.0
   short_term_lookback_candles: 4
   rsi_overbought: 70.0
   rsi_oversold: 30.0
-  oi_surge_threshold_pct: 8.0
+  oi_surge_threshold_pct: 12.0
   price_flat_threshold_pct: 2.5
-  funding_negative_threshold_pct: -0.015
+  funding_negative_threshold_pct: -0.03
 
 api:
   coingecko:

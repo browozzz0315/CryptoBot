@@ -9,19 +9,24 @@ from analysis.radar import (
     RadarEntry,
     build_ambush_rank,
     build_composite_rank,
+    build_dynamic_candidate_quotes,
     build_heat_rank,
+    build_liquid_mid_cap_rank,
     build_highlights,
     build_long_rank,
+    build_mainstream_rank,
+    build_mover_rank,
     calculate_oi_change_pct,
     estimate_sideways_days,
 )
-from analysis.signals import detect_subscription_events
+from analysis.signals import detect_subscription_events, should_push_event
 from bot.formatters import format_market_summary
 from bot.formatters import format_alert_triggered_message
 from bot.formatters import format_radar_message
 from bot.formatters import format_subscription_event_message
 from storage.candles import CandleRecord
 from storage.subscription_events import SubscriptionEventStateRecord
+from utils.logger import log_external_data_error
 
 
 async def push_market_summary(application: Application) -> None:
@@ -36,8 +41,8 @@ async def push_market_summary(application: Application) -> None:
 
     try:
         sentiment = await fear_greed_client.get_latest()
-    except Exception:  # noqa: BLE001
-        logger.exception("Failed to fetch Fear & Greed index for scheduled push")
+    except Exception as exc:  # noqa: BLE001
+        log_external_data_error("Failed to fetch Fear & Greed index for scheduled push", exc)
     else:
         sentiment_message = f"😱 Fear & Greed：{sentiment['value']}（{sentiment['classification']}）"
 
@@ -130,8 +135,8 @@ async def check_price_alerts(application: Application) -> None:
         if symbol not in symbol_quotes:
             try:
                 symbol_quotes[symbol] = await coingecko_client.get_price(symbol)
-            except Exception:  # noqa: BLE001
-                logger.exception("Failed to fetch price while evaluating alerts for {}", symbol)
+            except Exception as exc:  # noqa: BLE001
+                log_external_data_error("Failed to fetch price while evaluating alerts for {}", exc, symbol)
                 continue
 
         quote = symbol_quotes[symbol]
@@ -191,8 +196,8 @@ async def check_subscription_events(application: Application) -> None:
     for symbol in unique_symbols:
         try:
             quote_cache[symbol] = await coingecko_client.get_price(symbol)
-        except Exception:  # noqa: BLE001
-            logger.exception("Failed to fetch quote for subscription event check: {}", symbol)
+        except Exception as exc:  # noqa: BLE001
+            log_external_data_error("Failed to fetch quote for subscription event check: {}", exc, symbol)
             continue
 
         try:
@@ -231,8 +236,8 @@ async def check_subscription_events(application: Application) -> None:
                 close_prices,
                 lookback_candles=settings.subscription_events.short_term_lookback_candles,
             )
-        except Exception:  # noqa: BLE001
-            logger.exception("Failed to load close prices for subscription event check: {}", symbol)
+        except Exception as exc:  # noqa: BLE001
+            log_external_data_error("Failed to load close prices for subscription event check: {}", exc, symbol)
             close_price_cache[symbol] = []
             short_term_change_cache[symbol] = None
 
@@ -275,12 +280,19 @@ async def check_subscription_events(application: Application) -> None:
                 oi_surge_threshold_pct=settings.subscription_events.oi_surge_threshold_pct,
                 price_flat_threshold_pct=settings.subscription_events.price_flat_threshold_pct,
                 funding_negative_threshold_pct=settings.subscription_events.funding_negative_threshold_pct,
+                min_confirmations=settings.subscription_events.min_confirmations,
             )
             if not events:
                 continue
 
             event_lines: list[str] = []
             for event in events:
+                if not should_push_event(
+                    event,
+                    min_push_severity=settings.subscription_events.min_push_severity,
+                ):
+                    continue
+
                 in_cooldown = await subscription_event_state_repository.is_in_cooldown(
                     chat_id=chat_id,
                     symbol=symbol,
@@ -291,7 +303,11 @@ async def check_subscription_events(application: Application) -> None:
                 if in_cooldown:
                     continue
 
-                event_lines.append(f"{event.title}：{event.summary}")
+                reasons_text = "、".join(event.reasons or [])
+                event_lines.append(
+                    f"[{event.severity.upper()} {event.score}分] {event.title}："
+                    f"{event.summary} 理由：{reasons_text}"
+                )
                 await subscription_event_state_repository.upsert_state(
                     SubscriptionEventStateRecord(
                         chat_id=chat_id,
@@ -410,13 +426,34 @@ async def push_strategy_radar(application: Application, *, deliver: bool = True)
     binance_futures_client = application.bot_data["binance_futures_client"]
     candle_repository = application.bot_data["candle_repository"]
 
-    quotes = await coingecko_client.get_prices(settings.radar.symbols)
+    static_quotes = await coingecko_client.get_prices(settings.radar.symbols)
     try:
         trending_symbols = set(await coingecko_client.get_trending_symbols())
-    except Exception:  # noqa: BLE001
-        logger.exception("Failed to fetch CoinGecko trending symbols for radar")
+    except Exception as exc:  # noqa: BLE001
+        log_external_data_error("Failed to fetch CoinGecko trending symbols for radar", exc)
         trending_symbols = set()
 
+    quotes = static_quotes
+    if settings.radar.dynamic_candidates_enabled:
+        try:
+            market_quotes = await coingecko_client.get_market_quotes(
+                order="volume_desc",
+                per_page=max(settings.radar.dynamic_candidate_limit * 2, 50),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log_external_data_error("Failed to fetch CoinGecko markets for radar candidates", exc)
+            market_quotes = []
+        quotes = build_dynamic_candidate_quotes(
+            static_quotes=static_quotes,
+            market_quotes=market_quotes,
+            trending_symbols=trending_symbols,
+            limit=settings.radar.dynamic_candidate_limit,
+            min_volume_usd=settings.radar.min_volume_usd,
+            min_market_cap_usd=settings.radar.min_market_cap_usd,
+            max_market_cap_usd=settings.radar.max_market_cap_usd,
+        )
+
+    static_symbols = {str(item["symbol"]).upper() for item in static_quotes}
     entries: list[RadarEntry] = []
     for quote in quotes:
         symbol = str(quote["symbol"])
@@ -450,29 +487,32 @@ async def push_strategy_radar(application: Application, *, deliver: bool = True)
             limit=settings.radar.sideways_lookback_candles,
         )
         if not close_prices and settings.history.enabled:
-            candle_rows = await coingecko_client.get_ohlc(symbol, settings.history.ohlc_days)
-            await candle_repository.upsert_candles(
-                [
-                    CandleRecord(
-                        symbol=str(row["symbol"]),
-                        timeframe=str(row["timeframe"]),
-                        source=str(row["source"]),
-                        open_time=row["open_time"],
-                        close_time=row["close_time"],
-                        open_price=float(row["open_price"]),
-                        high_price=float(row["high_price"]),
-                        low_price=float(row["low_price"]),
-                        close_price=float(row["close_price"]),
-                    )
-                    for row in candle_rows
-                ]
-            )
-            close_prices = await candle_repository.list_close_prices(
-                symbol=symbol,
-                timeframe="4h",
-                source="coingecko",
-                limit=settings.radar.sideways_lookback_candles,
-            )
+            try:
+                candle_rows = await coingecko_client.get_ohlc(symbol, settings.history.ohlc_days)
+                await candle_repository.upsert_candles(
+                    [
+                        CandleRecord(
+                            symbol=str(row["symbol"]),
+                            timeframe=str(row["timeframe"]),
+                            source=str(row["source"]),
+                            open_time=row["open_time"],
+                            close_time=row["close_time"],
+                            open_price=float(row["open_price"]),
+                            high_price=float(row["high_price"]),
+                            low_price=float(row["low_price"]),
+                            close_price=float(row["close_price"]),
+                        )
+                        for row in candle_rows
+                    ]
+                )
+                close_prices = await candle_repository.list_close_prices(
+                    symbol=symbol,
+                    timeframe="4h",
+                    source="coingecko",
+                    limit=settings.radar.sideways_lookback_candles,
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning("Radar OHLC data unavailable for {}", symbol)
 
         sideways_days = estimate_sideways_days(
             close_prices,
@@ -490,9 +530,19 @@ async def push_strategy_radar(application: Application, *, deliver: bool = True)
                 long_short_ratio=long_short_ratio,
                 sideways_days=sideways_days,
                 trending=symbol in trending_symbols,
+                source="static" if symbol.upper() in static_symbols else "dynamic",
             )
         )
 
+    mainstream_entries = build_mainstream_rank(entries, 5)
+    mover_entries = build_mover_rank(entries, 8)
+    liquid_mid_cap_entries = build_liquid_mid_cap_rank(
+        entries,
+        limit=8,
+        min_volume_usd=settings.radar.min_volume_usd,
+        min_market_cap_usd=settings.radar.min_market_cap_usd,
+        max_market_cap_usd=settings.radar.max_market_cap_usd,
+    )
     heat_entries = build_heat_rank(entries, settings.radar.heat_top_n)
     long_entries = build_long_rank(entries, settings.radar.long_top_n)
     composite_entries = build_composite_rank(entries, settings.radar.composite_top_n)
@@ -506,6 +556,9 @@ async def push_strategy_radar(application: Application, *, deliver: bool = True)
 
     message = format_radar_message(
         timestamp=datetime.utcnow(),
+        mainstream_entries=mainstream_entries,
+        mover_entries=mover_entries,
+        liquid_mid_cap_entries=liquid_mid_cap_entries,
         heat_entries=heat_entries,
         long_entries=long_entries,
         composite_entries=composite_entries,

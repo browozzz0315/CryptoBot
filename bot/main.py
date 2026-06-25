@@ -3,7 +3,7 @@ from __future__ import annotations
 from time import perf_counter
 
 from loguru import logger
-from telegram.error import Conflict
+from telegram.error import Conflict, NetworkError, RetryAfter, TimedOut
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from bot.formatters import format_startup_message
@@ -101,7 +101,8 @@ async def telegram_error_handler(
     update: object,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    if isinstance(context.error, Conflict):
+    error = context.error
+    if isinstance(error, Conflict):
         logger.error(
             "Telegram polling conflict detected. "
             "Only one bot instance can call getUpdates for the same token. "
@@ -109,7 +110,19 @@ async def telegram_error_handler(
         )
         return
 
-    logger.opt(exception=context.error).error("Unhandled Telegram bot error. update={}", update)
+    if isinstance(error, RetryAfter):
+        logger.warning(
+            "Telegram API rate limit. retry_after={}s, update={}",
+            error.retry_after,
+            update,
+        )
+        return
+
+    if isinstance(error, (NetworkError, TimedOut)):
+        logger.warning("Telegram transient network error: {}. update={}", error, update)
+        return
+
+    logger.opt(exception=error).error("Unhandled Telegram bot error. update={}", update)
 
 
 def build_application() -> Application:

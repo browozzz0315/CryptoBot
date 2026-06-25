@@ -80,6 +80,11 @@ class RadarConfig:
     ambush_top_n: int
     sideways_lookback_candles: int
     sideways_threshold_pct: float
+    dynamic_candidates_enabled: bool
+    dynamic_candidate_limit: int
+    min_volume_usd: float
+    min_market_cap_usd: float
+    max_market_cap_usd: float
 
 
 @dataclass(slots=True)
@@ -91,6 +96,9 @@ class SubscriptionEventsConfig:
     no_event_summary_hours: list[int]
     no_event_summary_minute: int
     history_limit: int
+    min_push_severity: str
+    min_confirmations: int
+    medium_summary_enabled: bool
     price_change_threshold_pct: float
     short_term_breakout_threshold_pct: float
     short_term_lookback_candles: int
@@ -227,6 +235,11 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             ambush_top_n=int(raw_config["radar"]["ambush_top_n"]),
             sideways_lookback_candles=int(raw_config["radar"]["sideways_lookback_candles"]),
             sideways_threshold_pct=float(raw_config["radar"]["sideways_threshold_pct"]),
+            dynamic_candidates_enabled=bool(raw_config["radar"].get("dynamic_candidates_enabled", False)),
+            dynamic_candidate_limit=int(raw_config["radar"].get("dynamic_candidate_limit", len(raw_config["radar"]["symbols"]))),
+            min_volume_usd=float(raw_config["radar"].get("min_volume_usd", 0)),
+            min_market_cap_usd=float(raw_config["radar"].get("min_market_cap_usd", 0)),
+            max_market_cap_usd=float(raw_config["radar"].get("max_market_cap_usd", 0)),
         ),
         subscription_events=SubscriptionEventsConfig(
             enabled=bool(raw_config["subscription_events"]["enabled"]),
@@ -236,6 +249,9 @@ def load_settings(config_path: str = "config.yaml") -> Settings:
             no_event_summary_hours=[int(hour) for hour in raw_config["subscription_events"].get("no_event_summary_hours", [])],
             no_event_summary_minute=int(raw_config["subscription_events"].get("no_event_summary_minute", 0)),
             history_limit=int(raw_config["subscription_events"]["history_limit"]),
+            min_push_severity=str(raw_config["subscription_events"].get("min_push_severity", "high")).lower(),
+            min_confirmations=int(raw_config["subscription_events"].get("min_confirmations", 2)),
+            medium_summary_enabled=bool(raw_config["subscription_events"].get("medium_summary_enabled", True)),
             price_change_threshold_pct=float(raw_config["subscription_events"]["price_change_threshold_pct"]),
             short_term_breakout_threshold_pct=float(raw_config["subscription_events"].get("short_term_breakout_threshold_pct", 2.5)),
             short_term_lookback_candles=int(raw_config["subscription_events"].get("short_term_lookback_candles", 4)),

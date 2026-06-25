@@ -116,30 +116,56 @@ class CoinGeckoClient:
                 f"base_url={self.base_url}"
             )
 
-        last_updated = coin_data.get("last_updated")
-        last_updated_at = (
-            datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
-            if isinstance(last_updated, str)
-            else datetime.now(tz=UTC)
-        )
-
-        return {
-            "symbol": normalized_symbol,
-            "name": str(coin_data.get("name", normalized_symbol)),
-            "price": float(price),
-            "change_24h": float(coin_data.get("price_change_percentage_24h") or 0.0),
-            "market_cap": float(coin_data.get("market_cap") or 0.0),
-            "total_volume": float(coin_data.get("total_volume") or 0.0),
-            "high_24h": float(coin_data.get("high_24h") or 0.0),
-            "low_24h": float(coin_data.get("low_24h") or 0.0),
-            "last_updated_at": last_updated_at,
-        }
+        return self._format_market_quote(symbol=normalized_symbol, coin_data=coin_data)
 
     async def get_prices(self, symbols: list[str]) -> list[dict[str, float | str | datetime]]:
         quotes = []
         for symbol in symbols:
             quote = await self.get_price(symbol)
             quotes.append(quote)
+        return quotes
+
+    @retry_on_request_error
+    async def get_market_quotes(
+        self,
+        *,
+        order: str = "volume_desc",
+        per_page: int = 50,
+        page: int = 1,
+    ) -> list[dict[str, float | str | datetime]]:
+        response = await self._client.get(
+            "/coins/markets",
+            params={
+                "vs_currency": self.quote_currency,
+                "order": order,
+                "per_page": per_page,
+                "page": page,
+                "price_change_percentage": "24h",
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        if isinstance(payload, dict):
+            self._raise_payload_error(
+                symbol="MARKETS",
+                coin_id="MARKETS",
+                status_code=response.status_code,
+                payload=payload,
+            )
+        if not isinstance(payload, list):
+            raise ValueError(
+                "CoinGecko returned an unexpected markets payload. "
+                f"plan={self.api_plan}, base_url={self.base_url}, "
+                f"status_code={response.status_code}, payload_type={type(payload).__name__}"
+            )
+
+        quotes = []
+        for coin_data in payload:
+            symbol = str(coin_data.get("symbol", "")).upper()
+            if not symbol or coin_data.get("current_price") is None:
+                continue
+            quotes.append(self._format_market_quote(symbol=symbol, coin_data=coin_data))
         return quotes
 
     @retry_on_request_error
@@ -251,6 +277,30 @@ class CoinGeckoClient:
         if days in (90, 180, 365):
             return ("4d", 4 * 24 * 60 * 60)
         raise ValueError("CoinGecko OHLC days 僅支援 1, 2, 7, 14, 30, 90, 180, 365")
+
+    def _format_market_quote(
+        self,
+        *,
+        symbol: str,
+        coin_data: dict,
+    ) -> dict[str, float | str | datetime]:
+        last_updated = coin_data.get("last_updated")
+        last_updated_at = (
+            datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+            if isinstance(last_updated, str)
+            else datetime.now(tz=UTC)
+        )
+        return {
+            "symbol": symbol.upper(),
+            "name": str(coin_data.get("name", symbol.upper())),
+            "price": float(coin_data.get("current_price") or 0.0),
+            "change_24h": float(coin_data.get("price_change_percentage_24h") or 0.0),
+            "market_cap": float(coin_data.get("market_cap") or 0.0),
+            "total_volume": float(coin_data.get("total_volume") or 0.0),
+            "high_24h": float(coin_data.get("high_24h") or 0.0),
+            "low_24h": float(coin_data.get("low_24h") or 0.0),
+            "last_updated_at": last_updated_at,
+        }
 
     def _raise_payload_error(
         self,

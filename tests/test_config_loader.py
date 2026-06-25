@@ -53,6 +53,11 @@ def test_load_settings_parses_subscription_event_short_term_fields() -> None:
             "ambush_top_n": 8,
             "sideways_lookback_candles": 30,
             "sideways_threshold_pct": 12.0,
+            "dynamic_candidates_enabled": True,
+            "dynamic_candidate_limit": 40,
+            "min_volume_usd": 10_000_000,
+            "min_market_cap_usd": 5_000_000,
+            "max_market_cap_usd": 5_000_000_000,
         },
         "subscription_events": {
             "enabled": True,
@@ -62,6 +67,9 @@ def test_load_settings_parses_subscription_event_short_term_fields() -> None:
             "no_event_summary_hours": [9, 18],
             "no_event_summary_minute": 5,
             "history_limit": 80,
+            "min_push_severity": "high",
+            "min_confirmations": 2,
+            "medium_summary_enabled": True,
             "price_change_threshold_pct": 5.0,
             "short_term_breakout_threshold_pct": 2.5,
             "short_term_lookback_candles": 4,
@@ -93,7 +101,12 @@ def test_load_settings_parses_subscription_event_short_term_fields() -> None:
             settings = load_settings(str(config_path))
 
     assert settings.coingecko_api_plan == "pro"
+    assert settings.radar.dynamic_candidates_enabled is True
+    assert settings.radar.dynamic_candidate_limit == 40
+    assert settings.radar.min_volume_usd == 10_000_000
     assert settings.subscription_events.short_term_breakout_threshold_pct == 2.5
     assert settings.subscription_events.short_term_lookback_candles == 4
     assert settings.subscription_events.oi_surge_threshold_pct == 8.0
     assert settings.subscription_events.funding_negative_threshold_pct == -0.015
+    assert settings.subscription_events.min_push_severity == "high"
+    assert settings.subscription_events.min_confirmations == 2

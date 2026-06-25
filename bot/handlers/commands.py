@@ -529,6 +529,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         coingecko_plan=settings.coingecko_api_plan,
         tracked_symbols=settings.market.tracked_symbols,
         subscription_events_enabled=settings.subscription_events.enabled,
+        radar_dynamic_enabled=settings.radar.dynamic_candidates_enabled,
+        radar_candidate_limit=settings.radar.dynamic_candidate_limit,
+        event_min_push_severity=settings.subscription_events.min_push_severity,
         data_sources=data_sources,
     )
     await _reply_text(update, message)
@@ -572,6 +575,8 @@ async def events_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "short_term_lookback_candles": settings.subscription_events.short_term_lookback_candles,
             "oi_surge_threshold_pct": settings.subscription_events.oi_surge_threshold_pct,
             "funding_negative_threshold_pct": settings.subscription_events.funding_negative_threshold_pct,
+            "min_push_severity": settings.subscription_events.min_push_severity,
+            "min_confirmations": settings.subscription_events.min_confirmations,
         },
         recent_events=[
             {

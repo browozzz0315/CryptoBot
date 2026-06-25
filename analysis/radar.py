@@ -14,6 +14,7 @@ class RadarEntry:
     long_short_ratio: float | None
     sideways_days: int
     trending: bool
+    source: str = "static"
 
 
 def build_heat_rank(entries: list[RadarEntry], limit: int) -> list[RadarEntry]:
@@ -33,6 +34,82 @@ def build_composite_rank(entries: list[RadarEntry], limit: int) -> list[tuple[Ra
 def build_ambush_rank(entries: list[RadarEntry], limit: int) -> list[tuple[RadarEntry, int]]:
     ranked = sorted(entries, key=lambda item: _ambush_score(item), reverse=True)[:limit]
     return [(entry, _ambush_score(entry)) for entry in ranked]
+
+
+def build_mainstream_rank(entries: list[RadarEntry], limit: int) -> list[RadarEntry]:
+    mainstream = [entry for entry in entries if entry.market_cap >= 5_000_000_000]
+    return sorted(mainstream, key=lambda item: item.total_volume, reverse=True)[:limit]
+
+
+def build_mover_rank(entries: list[RadarEntry], limit: int) -> list[RadarEntry]:
+    movers = [entry for entry in entries if entry.total_volume >= 10_000_000]
+    return sorted(movers, key=lambda item: abs(item.change_24h), reverse=True)[:limit]
+
+
+def build_liquid_mid_cap_rank(
+    entries: list[RadarEntry],
+    *,
+    limit: int,
+    min_volume_usd: float,
+    min_market_cap_usd: float,
+    max_market_cap_usd: float,
+) -> list[RadarEntry]:
+    candidates = [
+        entry
+        for entry in entries
+        if entry.total_volume >= min_volume_usd
+        and entry.market_cap >= min_market_cap_usd
+        and entry.market_cap <= max_market_cap_usd
+    ]
+    return sorted(candidates, key=_liquid_mid_cap_score, reverse=True)[:limit]
+
+
+def build_dynamic_candidate_quotes(
+    *,
+    static_quotes: list[dict[str, float | str]],
+    market_quotes: list[dict[str, float | str]],
+    trending_symbols: set[str],
+    limit: int,
+    min_volume_usd: float,
+    min_market_cap_usd: float,
+    max_market_cap_usd: float,
+) -> list[dict[str, float | str]]:
+    selected: list[dict[str, float | str]] = []
+    seen: set[str] = set()
+
+    def add_quote(quote: dict[str, float | str]) -> None:
+        symbol = str(quote["symbol"]).upper()
+        if symbol in seen or len(selected) >= limit:
+            return
+        seen.add(symbol)
+        selected.append(quote)
+
+    for quote in static_quotes:
+        add_quote(quote)
+
+    filtered = [
+        quote
+        for quote in market_quotes
+        if float(quote.get("total_volume", 0.0)) >= min_volume_usd
+        and float(quote.get("market_cap", 0.0)) >= min_market_cap_usd
+        and (
+            max_market_cap_usd <= 0
+            or float(quote.get("market_cap", 0.0)) <= max_market_cap_usd
+            or str(quote.get("symbol", "")).upper() in trending_symbols
+        )
+    ]
+    ranked_groups = [
+        [quote for quote in filtered if str(quote.get("symbol", "")).upper() in trending_symbols],
+        sorted(filtered, key=lambda item: float(item.get("total_volume", 0.0)), reverse=True),
+        sorted(filtered, key=lambda item: abs(float(item.get("change_24h", 0.0))), reverse=True),
+        sorted(filtered, key=_quote_liquid_mid_cap_score, reverse=True),
+    ]
+    for group in ranked_groups:
+        for quote in group:
+            add_quote(quote)
+            if len(selected) >= limit:
+                break
+    return selected
 
 
 def build_highlights(
@@ -130,6 +207,33 @@ def _ambush_score(entry: RadarEntry) -> int:
     sideways_score = min(entry.sideways_days, 180) / 180 * 20
     funding_score = _scale_negative(entry.funding_rate, weight=15)
     return round(market_cap_score + oi_score + sideways_score + funding_score)
+
+
+def _liquid_mid_cap_score(entry: RadarEntry) -> float:
+    volume_score = min(entry.total_volume / 50_000_000, 40)
+    movement_score = min(abs(entry.change_24h), 40)
+    market_cap_score = _scale_inverse(
+        entry.market_cap,
+        floor=5_000_000,
+        ceiling=5_000_000_000,
+        weight=20,
+    )
+    return volume_score + movement_score + market_cap_score
+
+
+def _quote_liquid_mid_cap_score(quote: dict[str, float | str]) -> float:
+    market_cap = float(quote.get("market_cap", 0.0))
+    total_volume = float(quote.get("total_volume", 0.0))
+    change_24h = float(quote.get("change_24h", 0.0))
+    volume_score = min(total_volume / 50_000_000, 40)
+    movement_score = min(abs(change_24h), 40)
+    market_cap_score = _scale_inverse(
+        market_cap,
+        floor=5_000_000,
+        ceiling=5_000_000_000,
+        weight=20,
+    )
+    return volume_score + movement_score + market_cap_score
 
 
 def _scale_inverse(value: float, *, floor: float, ceiling: float, weight: float) -> float:

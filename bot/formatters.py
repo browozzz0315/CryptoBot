@@ -12,6 +12,9 @@ def format_status_message(
     coingecko_plan: str,
     tracked_symbols: list[str],
     subscription_events_enabled: bool,
+    radar_dynamic_enabled: bool = False,
+    radar_candidate_limit: int | None = None,
+    event_min_push_severity: str | None = None,
     data_sources: list[dict[str, str | bool]],
 ) -> str:
     lines = [
@@ -21,6 +24,9 @@ def format_status_message(
         f"CoinGecko plan：{coingecko_plan}",
         f"追蹤幣種：{', '.join(symbol.upper() for symbol in tracked_symbols) or '未設定'}",
         f"事件訂閱：{'啟用' if subscription_events_enabled else '停用'}",
+        f"事件推播等級：{event_min_push_severity or '未設定'}",
+        f"雷達動態候選：{'啟用' if radar_dynamic_enabled else '停用'}"
+        + (f"，上限 {radar_candidate_limit}" if radar_candidate_limit is not None else ""),
         "",
         "資料源檢查：",
     ]
@@ -61,6 +67,8 @@ def format_events_status_message(
             f"- 短線回看 K 線：{int(thresholds['short_term_lookback_candles'])} 根",
             f"- OI 暗流：+{float(thresholds['oi_surge_threshold_pct']):.2f}%",
             f"- Funding 偏負：{float(thresholds['funding_negative_threshold_pct']):+.3f}%",
+            f"- 最低推播等級：{thresholds.get('min_push_severity', 'high')}",
+            f"- 最少共振條件：{int(thresholds.get('min_confirmations', 2))}",
             f"- Cooldown：{cooldown_minutes} 分鐘",
             "",
             "最近事件：",
@@ -228,6 +236,9 @@ def format_subscription_event_message(
 def format_radar_message(
     *,
     timestamp: datetime,
+    mainstream_entries: list[RadarEntry],
+    mover_entries: list[RadarEntry],
+    liquid_mid_cap_entries: list[RadarEntry],
     heat_entries: list[RadarEntry],
     long_entries: list[RadarEntry],
     composite_entries: list[tuple[RadarEntry, int]],
@@ -235,6 +246,15 @@ def format_radar_message(
     highlights: list[str],
 ) -> str:
     lines = [f"🏦 策略雷達推播", f"⏰ {timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}", ""]
+    lines.append("🏛 主流幣")
+    lines.extend(_format_simple_entries(mainstream_entries))
+    lines.append("")
+    lines.append("⚡ 異動幣")
+    lines.extend(_format_simple_entries(mover_entries))
+    lines.append("")
+    lines.append("💧 中小市值高流動性")
+    lines.extend(_format_simple_entries(liquid_mid_cap_entries))
+    lines.append("")
     lines.append("🔥 熱度榜")
     lines.extend(_format_heat_entries(heat_entries))
     lines.append("")
@@ -285,6 +305,16 @@ def _format_heat_entries(entries: list[RadarEntry]) -> list[str]:
             f"  {entry.symbol:<8} ~${entry.market_cap/1_000_000:,.0f}M 漲{entry.change_24h:+.0f}% | {' '.join(tags)}"
         )
     return lines
+
+
+def _format_simple_entries(entries: list[RadarEntry]) -> list[str]:
+    if not entries:
+        return ["  無資料"]
+    return [
+        f"  {entry.symbol:<8} ~${entry.market_cap/1_000_000:,.0f}M "
+        f"Vol ${entry.total_volume/1_000_000:,.0f}M 漲{entry.change_24h:+.1f}%"
+        for entry in entries
+    ]
 
 
 def _format_long_entries(entries: list[RadarEntry]) -> list[str]:

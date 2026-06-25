@@ -612,3 +612,60 @@ aiosqlite==0.21.0
 
 - 支援 HYPE、NEAR 等更多幣種：加入 CoinGecko `/search` 或幣種清單快取。
 - 記錄每次排程 job 的最後成功 / 失敗時間，讓 `/status` 顯示更完整的健康狀態。
+
+---
+
+## 2026-06-25 實作記錄：事件品質調整與雷達動態候選池
+
+### 目標
+
+- 降低訂閱事件通知噪音，避免單一低強度訊號頻繁即時推播。
+- 提升策略雷達對中小市值、高流動性與短線異動幣種的覆蓋率，避免榜單長期只出現 BTC / ETH / SOL 等主流幣。
+- AI 分析先保留為後續摘要與解釋層，不在本輪接真實 AI API，也不產生自動交易指令。
+
+### 已完成
+
+- 訂閱事件新增 `severity`、`score`、`reasons`，事件可分為 `high`、`medium`、`low`。
+- 事件推播新增 `min_push_severity` 與 `min_confirmations`，預設只有 `high` 且至少 2 個條件共振才即時推播。
+- 預設門檻調高：24h 漲跌 `8%`、短線突破 / 跌破 `4%`、OI `12%`、Funding 負值 `-0.03%`、cooldown `360` 分鐘。
+- CoinGecko client 新增 markets 查詢方法，可從 `/coins/markets` 取得不限於手寫 symbol mapping 的候選幣種。
+- 雷達候選池改為固定清單 + CoinGecko trending + 高成交量 + 24h 漲跌異動 + 中小市值高流動性，並套用成交量與市值門檻。
+- 雷達輸出新增主流幣、異動幣、中小市值高流動性分區；缺少 Binance Futures funding / OI / 多空比的幣種會降級，不讓整份雷達失敗。
+- `/status` 與 `/events` 補充事件推播門檻與雷達動態候選設定，方便後續調參。
+
+### 設計決策
+
+- 即時通知寧可少而準；單一低強度事件保留在 `/events` 或未來摘要，不直接推播。
+- 中小幣必須通過最低成交量與市值門檻，避免低流動性標的造成誤判或滑價風險。
+- 動態候選池優先使用 CoinGecko 官方 API，不先做 CoinAnk 爬蟲，降低維護成本與封鎖風險。
+- Binance Futures 衍生品資料不是所有現貨幣種都有，因此雷達排名必須允許 funding / OI 缺失。
+- AI 分析後續應讀取事件與雷達的結構化結果，產生「值得關注原因」與「風險提醒」，不得直接輸出買賣命令。
+
+### 後續優先項目
+
+- 觀察 1 到 2 天事件紀錄後，再微調 `min_confirmations`、`min_push_severity` 與各事件閾值。
+- 新增 `/events` 的 medium / low 摘要視圖，讓低強度訊號可查詢但不洗版。
+- 將 radar candidate builder 的候選來源、篩選原因與排行分數持久化，供 `/status` 或 `/diag` 顯示最近一次雷達健康狀態。
+- 規劃 AI 摘要模組輸入格式，優先用雷達 entries、事件 reasons、資料缺失狀態與風險限制組成 prompt。
+
+---
+
+## 2026-06-25 實作記錄：Log 降噪與每日輪替
+
+### 問題
+
+- `runtime/logs/warnings-errors.log` 原本集中寫入單一檔案，跨日追蹤不方便。
+- Telegram polling 的 `Bad Gateway`、`ReadError`、`TimedOut` 屬於常見暫時性網路問題，但原本會以 `ERROR + traceback` 記錄，容易被誤判為程式崩潰。
+- CoinGecko / Binance 的 timeout、連線中斷、HTTP 429 / 5xx 多半是外部資料源暫時性錯誤，排程應跳過該次資料並留下可讀摘要。
+
+### 決策
+
+- warning/error 檔案 sink 改為每日 `00:00` 輪替，保留 `30 days`，維持 UTF-8 without BOM。
+- Telegram `Conflict` 保持 `ERROR`，因為代表同一 token 有多個 polling 實例。
+- Telegram `NetworkError`、`TimedOut`、`RetryAfter` 改為 `WARNING` 摘要，不輸出完整 traceback。
+- 新增外部資料源錯誤 helper：HTTP 408、429、5xx、timeout、transport error 以 warning 摘要記錄；未預期錯誤仍保留 traceback。
+
+### 後續優先項目
+
+- 若 warning 仍過多，可加入同類錯誤節流，例如同一 job / symbol / error type 每 30 分鐘只記錄一次。
+- 若要讓 `/status` 顯示最近錯誤，需要新增 diagnostics table 或最近錯誤 ring buffer。
